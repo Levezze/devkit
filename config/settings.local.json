@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo $SHELL)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(chmod:*)",
+      "Bash(source:*)",
+      "Bash(cursor:*)",
+      "Bash(/mnt/c/Windows/explorer.exe .)",
+      "Read(//mnt/c/Users/levzh/AppData/**)",
+      "Bash(python3:*)",
+      "mcp__exa__web_search_exa",
+      "Bash(npm cache:*)",
+      "Bash(cat:*)",
+      "Bash(gh auth status:*)",
+      "Bash(npm audit:*)",
+      "Bash(pnpm:*)",
+      "Bash(pnpm config:*)",
+      "Bash(wc:*)",
+      "Bash(du:*)"
+    ],
+    "deny": []
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "shadcn"
+  ]
+}

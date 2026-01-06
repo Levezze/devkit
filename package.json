@@ -1,0 +1,20 @@
+{
+  "name": "claude-settings",
+  "version": "1.0.0",
+  "description": "Interactive installer for Claude Code settings",
+  "main": "install.js",
+  "bin": {
+    "claude-settings": "./install.js"
+  },
+  "scripts": {
+    "start": "node install.js"
+  },
+  "keywords": ["claude", "claude-code", "settings", "installer"],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "inquirer": "^13.1.0"
+  }
+}
