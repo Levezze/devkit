@@ -1,88 +1,104 @@
-# Claude Settings
+# Claude Settings + Machine Bootstrap
 
-Interactive installer for Claude Code settings, agents, commands, and MCP configuration.
+Portable development environment setup with Claude Code configuration.
 
 ## Quick Start
 
+### Option 1: Complete Setup (New Machine)
+
+Sets up your entire dev environment + Claude settings:
+
 ```bash
-git clone <your-repo-url>
-cd claude-settings
+git clone <your-repo-url> ~/claude-settings
+cd ~/claude-settings
+./setup.sh
+```
+
+**Installs:** Homebrew, Zsh, Oh-My-Zsh, Powerlevel10k, Git, GitHub CLI, Node.js, pnpm, Python 3, Docker, CLI tools, Claude Code, and all Claude settings.
+
+### Option 2: Bootstrap Only
+
+Just dev tools, no Claude configuration:
+
+```bash
+./bootstrap.sh
+```
+
+### Option 3: Claude Settings Only
+
+Machine already set up, just want Claude config:
+
+```bash
 npm install
 node install.js
 ```
 
-## Installation Modes
+---
 
-### Minimal
-Installs only core settings:
-- `settings.json` - Auto-approve settings, permissions
-- `settings.local.json` - Permission allowlists
-- `mcp.json` - MCP server configuration
+## What Gets Installed
 
-### Full
-Installs everything:
-- Core settings
-- 6 specialized agents
-- 5 custom commands
-- Plugin reference
+### Bootstrap (`bootstrap.sh`)
 
-### Categories
-Select which packages to install:
-- Settings
-- Agents
-- Commands
-- Plugins
+| Category | Tools |
+|----------|-------|
+| Shell | Zsh, Oh-My-Zsh, Powerlevel10k |
+| Package Manager | Homebrew |
+| Version Control | Git, GitHub CLI |
+| JavaScript | Node.js (via nvm), pnpm |
+| Python | Python 3 |
+| Containers | Docker |
+| CLI Utilities | curl, wget, jq, tree, htop, ripgrep, fd, bat, eza |
+| AI | Claude Code |
 
-### Manual
-Pick individual items to install.
+Each component:
+- Checks if already installed
+- Prompts before installing
+- Supports "skip all" / "reinstall all" for batch operations
 
-## What's Included
+### Claude Settings (`node install.js`)
 
-### Settings
-- Auto-approve settings for common tools
-- Permission allowlists for bash commands
-- MCP server enables
+**Installation Modes:**
+- **Minimal** - Settings + permissions only
+- **Full** - Everything
+- **Categories** - Select packages
+- **Manual** - Pick individual items
+
+**Included:**
+
+| Type | Items |
+|------|-------|
+| Settings | `settings.json`, `settings.local.json`, `mcp.json` |
+| Agents | git-master, code-reviewer, testing-wizard, documentation-scholar, api-planner, senior-interviewer |
+| Commands | /add-commit, /pr, /review-code, /document, /ask |
 
 **Note:** Model selection is intentionally excluded. Configure your preferred model fresh on each machine.
 
-### Agents
-| Agent | Purpose |
-|-------|---------|
-| git-master | Git operations, conventional commits, PR descriptions |
-| code-reviewer | Code quality review, best practices |
-| testing-wizard | Test execution and coverage |
-| documentation-scholar | Documentation generation |
-| api-planner | API design and planning |
-| senior-interviewer | Technical interview preparation |
-
-### Commands
-| Command | Purpose |
-|---------|---------|
-| /add-commit | Quick add and commit with conventional format |
-| /pr | Generate PR descriptions from commits |
-| /review-code | Comprehensive code review |
-| /document | Generate documentation |
-| /ask | Custom ask command |
+---
 
 ## MCP Servers
 
-After installation, see `CLAUDE_INSTRUCTIONS.md` for help setting up additional MCP servers like:
+After installation, see `CLAUDE_INSTRUCTIONS.md` for help setting up additional MCP servers:
 - context7 (documentation lookup)
 - exa (web search)
 - puppeteer (browser automation)
+- sequential-thinking
 - And more
+
+---
 
 ## Updating
 
-To update your settings:
-
 ```bash
-cd claude-settings
+cd ~/claude-settings
 git pull
-node install.js
+./setup.sh          # Full update
+# OR
+node install.js     # Just Claude settings
 ```
 
 Choose "Overwrite all remaining" when prompted to update all files.
+
+---
 
 ## Customization
 
@@ -93,6 +109,19 @@ Choose "Overwrite all remaining" when prompted to update all files.
 ### Adding New Commands
 1. Create a markdown file in `commands/`
 2. Add the file to `src/packages.js` under the commands package
+
+### Adding Bootstrap Components
+Edit `bootstrap.sh` and add a new `install_*` function.
+
+---
+
+## Platform Support
+
+- **macOS** (Intel + Apple Silicon)
+- **Linux**
+- **WSL2**
+
+---
 
 ## License
 
