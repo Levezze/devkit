@@ -24,16 +24,16 @@ export const packages = {
       { src: 'agents/senior-interviewer.md', dest: '~/.claude/agents/senior-interviewer.md', name: 'senior-interviewer' },
     ]
   },
-  commands: {
-    name: 'Commands',
-    description: 'Custom slash commands',
-    category: 'commands',
+  skills: {
+    name: 'Skills',
+    description: 'Custom slash command skills',
+    category: 'skills',
     files: [
-      { src: 'commands/add-commit.md', dest: '~/.claude/commands/add-commit.md', name: '/add-commit' },
-      { src: 'commands/pr.md', dest: '~/.claude/commands/pr.md', name: '/pr' },
-      { src: 'commands/review-code.md', dest: '~/.claude/commands/review-code.md', name: '/review-code' },
-      { src: 'commands/document.md', dest: '~/.claude/commands/document.md', name: '/document' },
-      { src: 'commands/ask.md', dest: '~/.claude/commands/ask.md', name: '/ask' },
+      { src: 'skills/add-commit/SKILL.md', dest: '~/.claude/skills/add-commit/SKILL.md', name: '/add-commit' },
+      { src: 'skills/pr/SKILL.md', dest: '~/.claude/skills/pr/SKILL.md', name: '/pr' },
+      { src: 'skills/review-code/SKILL.md', dest: '~/.claude/skills/review-code/SKILL.md', name: '/review-code' },
+      { src: 'skills/document/SKILL.md', dest: '~/.claude/skills/document/SKILL.md', name: '/document' },
+      { src: 'skills/ask/SKILL.md', dest: '~/.claude/skills/ask/SKILL.md', name: '/ask' },
     ]
   },
   plugins: {
@@ -55,8 +55,8 @@ export const modes = {
   },
   full: {
     name: 'Full',
-    description: 'Everything (settings, agents, commands, plugins)',
-    packages: ['settings', 'agents', 'commands', 'plugins']
+    description: 'Everything (settings, agents, skills, plugins)',
+    packages: ['settings', 'agents', 'skills', 'plugins']
   }
 };
 
