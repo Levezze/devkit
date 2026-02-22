@@ -69,7 +69,7 @@ Each component:
 |------|-------|
 | Settings | `settings.json`, `settings.local.json`, `mcp.json` |
 | Agents | git-master, code-reviewer, testing-wizard, documentation-scholar, api-planner, senior-interviewer |
-| Commands | /add-commit, /pr, /review-code, /document, /ask |
+| Skills | /add-commit, /pr, /review-code, /document, /ask |
 
 **Note:** Model selection is intentionally excluded. Configure your preferred model fresh on each machine.
 
@@ -100,15 +100,41 @@ Choose "Overwrite all remaining" when prompted to update all files.
 
 ---
 
+## Agents
+
+Each agent is a specialized subagent with scoped tool access and turn limits.
+
+| Agent | Purpose | Tools | Max Turns |
+|-------|---------|-------|-----------|
+| git-master | Commits, PRs, version control. No AI watermarks. | All (needs Bash + Write for git) | 15 |
+| code-reviewer | Read-only code quality review | Read, Glob, Grep | 15 |
+| testing-wizard | Test execution and coverage analysis | Read, Glob, Grep, Bash | 20 |
+| documentation-scholar | Technical documentation writing | All (needs Write for docs) | 20 |
+| api-planner | API research and integration planning | Read, Glob, Grep, WebFetch, WebSearch | 15 |
+| senior-interviewer | Mock technical interviews | Read, Write, Glob, Grep | 50 |
+
+## Skills
+
+| Skill | What it does |
+|-------|-------------|
+| /add-commit | Stage and commit changes via git-master |
+| /pr | Create a PR with clean description via git-master |
+| /review-code | Two-step review: code-reviewer first, then testing-wizard if needed |
+| /document | Generate documentation via documentation-scholar |
+| /ask | Research questions with web search |
+
+---
+
 ## Customization
 
 ### Adding New Agents
 1. Create a markdown file in `agents/`
 2. Add the file to `src/packages.js` under the agents package
 
-### Adding New Commands
-1. Create a markdown file in `commands/`
-2. Add the file to `src/packages.js` under the commands package
+### Adding New Skills
+1. Create a directory in `skills/<skill-name>/`
+2. Add a `SKILL.md` inside it
+3. Add the file to `src/packages.js` under the skills package
 
 ### Adding Bootstrap Components
 Edit `bootstrap.sh` and add a new `install_*` function.
