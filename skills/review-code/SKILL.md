@@ -1,17 +1,18 @@
 ---
 name: review-code
-description: Code quality review with automatic testing assessment.
+description: Code quality review with optional testing assessment.
 disable-model-invocation: true
 ---
 
-Use the code-reviewer subagent to perform comprehensive code quality review, with automatic testing assessment via testing-wizard when needed.
+Perform a two-step code quality review:
 
-The code-reviewer subagent will:
-1. Analyze all current code changes and modifications
-2. Review code quality, best practices, and DRY principles
-3. Check for security issues and performance concerns
-4. Determine if testing analysis is needed and invoke testing-wizard subagent
-5. Provide actionable feedback with specific file/line references
-6. Give overall assessment of commit-readiness
+**Step 1:** Use the code-reviewer subagent to review all current code changes for quality,
+best practices, DRY principles, security, and performance. It will provide a structured
+report with commit-readiness assessment.
+
+**Step 2:** If code-reviewer's report indicates testing gaps or if the changes are significant,
+ALSO use the testing-wizard subagent to run tests and analyze coverage.
+
+Present both reports together as a unified assessment.
 
 Optional context: $ARGUMENTS
