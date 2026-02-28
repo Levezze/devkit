@@ -7,7 +7,7 @@ import { installFiles } from './installer.js';
 function printHeader() {
   console.log('');
   console.log(chalk.cyan('  ╭──────────────────────────────────────╮'));
-  console.log(chalk.cyan('  │') + chalk.bold('   Claude Settings Installer          ') + chalk.cyan('│'));
+  console.log(chalk.cyan('  │') + chalk.bold('   Devkit Installer                   ') + chalk.cyan('│'));
   console.log(chalk.cyan('  ╰──────────────────────────────────────╯'));
   console.log('');
 }

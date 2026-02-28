@@ -6,9 +6,9 @@ export const packages = {
     description: 'Permissions, auto-approve settings, and MCP configuration',
     category: 'settings',
     files: [
-      { src: 'config/settings.json', dest: '~/.claude/settings.json', name: 'settings.json' },
-      { src: 'config/settings.local.json', dest: '~/.claude/settings.local.json', name: 'settings.local.json' },
-      { src: 'config/mcp.json', dest: '~/.mcp.json', name: 'mcp.json' },
+      { src: 'claude/settings.json', dest: '~/.claude/settings.json', name: 'settings.json' },
+      { src: 'claude/settings.local.json', dest: '~/.claude/settings.local.json', name: 'settings.local.json' },
+      { src: 'claude/mcp.json', dest: '~/.mcp.json', name: 'mcp.json' },
     ]
   },
   agents: {
@@ -16,12 +16,12 @@ export const packages = {
     description: 'Specialized subagents for different tasks',
     category: 'agents',
     files: [
-      { src: 'agents/git-master.md', dest: '~/.claude/agents/git-master.md', name: 'git-master' },
-      { src: 'agents/code-reviewer.md', dest: '~/.claude/agents/code-reviewer.md', name: 'code-reviewer' },
-      { src: 'agents/testing-wizard.md', dest: '~/.claude/agents/testing-wizard.md', name: 'testing-wizard' },
-      { src: 'agents/documentation-scholar.md', dest: '~/.claude/agents/documentation-scholar.md', name: 'documentation-scholar' },
-      { src: 'agents/api-planner.md', dest: '~/.claude/agents/api-planner.md', name: 'api-planner' },
-      { src: 'agents/senior-interviewer.md', dest: '~/.claude/agents/senior-interviewer.md', name: 'senior-interviewer' },
+      { src: 'claude/agents/git-master.md', dest: '~/.claude/agents/git-master.md', name: 'git-master' },
+      { src: 'claude/agents/code-reviewer.md', dest: '~/.claude/agents/code-reviewer.md', name: 'code-reviewer' },
+      { src: 'claude/agents/testing-wizard.md', dest: '~/.claude/agents/testing-wizard.md', name: 'testing-wizard' },
+      { src: 'claude/agents/documentation-scholar.md', dest: '~/.claude/agents/documentation-scholar.md', name: 'documentation-scholar' },
+      { src: 'claude/agents/api-planner.md', dest: '~/.claude/agents/api-planner.md', name: 'api-planner' },
+      { src: 'claude/agents/senior-interviewer.md', dest: '~/.claude/agents/senior-interviewer.md', name: 'senior-interviewer' },
     ]
   },
   skills: {
@@ -29,11 +29,11 @@ export const packages = {
     description: 'Custom slash command skills',
     category: 'skills',
     files: [
-      { src: 'skills/add-commit/SKILL.md', dest: '~/.claude/skills/add-commit/SKILL.md', name: '/add-commit' },
-      { src: 'skills/pr/SKILL.md', dest: '~/.claude/skills/pr/SKILL.md', name: '/pr' },
-      { src: 'skills/review-code/SKILL.md', dest: '~/.claude/skills/review-code/SKILL.md', name: '/review-code' },
-      { src: 'skills/document/SKILL.md', dest: '~/.claude/skills/document/SKILL.md', name: '/document' },
-      { src: 'skills/ask/SKILL.md', dest: '~/.claude/skills/ask/SKILL.md', name: '/ask' },
+      { src: 'claude/skills/add-commit/SKILL.md', dest: '~/.claude/skills/add-commit/SKILL.md', name: '/add-commit' },
+      { src: 'claude/skills/pr/SKILL.md', dest: '~/.claude/skills/pr/SKILL.md', name: '/pr' },
+      { src: 'claude/skills/review-code/SKILL.md', dest: '~/.claude/skills/review-code/SKILL.md', name: '/review-code' },
+      { src: 'claude/skills/document/SKILL.md', dest: '~/.claude/skills/document/SKILL.md', name: '/document' },
+      { src: 'claude/skills/ask/SKILL.md', dest: '~/.claude/skills/ask/SKILL.md', name: '/ask' },
     ]
   },
   plugins: {
@@ -41,7 +41,7 @@ export const packages = {
     description: 'Plugin list for manual installation reference',
     category: 'plugins',
     files: [
-      { src: 'reference/plugins.json', dest: '~/.claude/plugins/installed_plugins.json', name: 'plugins.json' },
+      { src: 'claude/plugins/installed_plugins.json', dest: '~/.claude/plugins/installed_plugins.json', name: 'plugins.json' },
     ]
   }
 };

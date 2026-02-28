@@ -139,7 +139,7 @@ detect_os() {
 # ============================================================================
 
 install_homebrew() {
-  print_step 1 12 "Checking Homebrew..."
+  print_step 1 13 "Checking Homebrew..."
 
   if command -v brew &> /dev/null; then
     local version=$(brew --version | head -n1 | awk '{print $2}')
@@ -166,7 +166,7 @@ install_homebrew() {
 }
 
 install_zsh() {
-  print_step 2 12 "Checking Zsh..."
+  print_step 2 13 "Checking Zsh..."
 
   if command -v zsh &> /dev/null; then
     local version=$(zsh --version | awk '{print $2}')
@@ -202,7 +202,7 @@ install_zsh() {
 }
 
 install_ohmyzsh() {
-  print_step 3 12 "Checking Oh-My-Zsh..."
+  print_step 3 13 "Checking Oh-My-Zsh..."
 
   if [[ -d "$HOME/.oh-my-zsh" ]]; then
     if ! prompt_existing "Oh-My-Zsh" "installed"; then
@@ -223,7 +223,7 @@ install_ohmyzsh() {
 }
 
 install_p10k() {
-  print_step 4 12 "Checking Powerlevel10k..."
+  print_step 4 13 "Checking Powerlevel10k..."
 
   local p10k_dir="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
 
@@ -258,7 +258,7 @@ install_p10k() {
 }
 
 install_git() {
-  print_step 5 12 "Checking Git..."
+  print_step 5 13 "Checking Git..."
 
   if command -v git &> /dev/null; then
     local version=$(git --version | awk '{print $3}')
@@ -278,7 +278,7 @@ install_git() {
 }
 
 install_gh() {
-  print_step 6 12 "Checking GitHub CLI..."
+  print_step 6 13 "Checking GitHub CLI..."
 
   if command -v gh &> /dev/null; then
     local version=$(gh --version | head -n1 | awk '{print $3}')
@@ -310,7 +310,7 @@ install_gh() {
 }
 
 install_node() {
-  print_step 7 12 "Checking Node.js..."
+  print_step 7 13 "Checking Node.js..."
 
   if command -v node &> /dev/null; then
     local version=$(node --version)
@@ -353,7 +353,7 @@ install_node() {
 }
 
 install_pnpm() {
-  print_step 8 12 "Checking pnpm..."
+  print_step 8 13 "Checking pnpm..."
 
   if command -v pnpm &> /dev/null; then
     local version=$(pnpm --version)
@@ -378,7 +378,7 @@ install_pnpm() {
 }
 
 install_python() {
-  print_step 9 12 "Checking Python 3..."
+  print_step 9 13 "Checking Python 3..."
 
   if command -v python3 &> /dev/null; then
     local version=$(python3 --version | awk '{print $2}')
@@ -398,7 +398,7 @@ install_python() {
 }
 
 install_docker() {
-  print_step 10 12 "Checking Docker..."
+  print_step 10 13 "Checking Docker..."
 
   if command -v docker &> /dev/null; then
     local version=$(docker --version | awk '{print $3}' | tr -d ',')
@@ -426,7 +426,7 @@ install_docker() {
 }
 
 install_cli_tools() {
-  print_step 11 12 "Installing CLI tools..."
+  print_step 11 13 "Installing CLI tools..."
 
   local tools=(
     "curl"
@@ -457,7 +457,7 @@ install_cli_tools() {
 }
 
 install_claude_code() {
-  print_step 12 12 "Checking Claude Code..."
+  print_step 12 13 "Checking Claude Code..."
 
   if command -v claude &> /dev/null; then
     local version=$(claude --version 2>/dev/null | head -n1 || echo "installed")
@@ -474,6 +474,34 @@ install_claude_code() {
   brew install claude-code
 
   print_success "Claude Code installed"
+}
+
+install_claude_config() {
+  print_step 13 13 "Installing Claude config..."
+
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local src_dir="$SCRIPT_DIR/claude"
+  local dest_dir="$HOME/.claude"
+
+  if [[ ! -d "$src_dir" ]]; then
+    print_warning "claude/ directory not found in repo, skipping"
+    return 0
+  fi
+
+  if ! confirm "Install Claude config (agents, skills, settings)?"; then
+    return 0
+  fi
+
+  # Copy everything from claude/ to ~/.claude/
+  mkdir -p "$dest_dir"
+  cp -r "$src_dir"/* "$dest_dir"/
+
+  # Copy mcp.json to its special location
+  if [[ -f "$src_dir/mcp.json" ]]; then
+    cp "$src_dir/mcp.json" "$HOME/.mcp.json"
+  fi
+
+  print_success "Claude config installed to $dest_dir"
 }
 
 # ============================================================================
@@ -508,6 +536,7 @@ main() {
   install_docker
   install_cli_tools
   install_claude_code
+  install_claude_config
 
   # Final summary
   echo ""
@@ -520,8 +549,8 @@ main() {
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     if [[ -f "$SCRIPT_DIR/install.js" ]] && command -v node &> /dev/null; then
       echo ""
-      if confirm "Run Claude settings installer now?"; then
-        print_info "Launching Claude settings installer..."
+      if confirm "Run devkit installer now?"; then
+        print_info "Launching devkit installer..."
         cd "$SCRIPT_DIR"
         npm install --silent 2>/dev/null
         node install.js

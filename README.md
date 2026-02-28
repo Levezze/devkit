@@ -1,20 +1,20 @@
-# Claude Settings + Machine Bootstrap
+# Devkit
 
-Portable development environment setup with Claude Code configuration.
+Portable development environment bootstrap and Claude Code configuration.
 
 ## Quick Start
 
 ### Option 1: Complete Setup (New Machine)
 
-Sets up your entire dev environment + Claude settings:
+Sets up your entire dev environment + Claude config:
 
 ```bash
-git clone <your-repo-url> ~/claude-settings
-cd ~/claude-settings
+git clone <your-repo-url> ~/devkit
+cd ~/devkit
 ./setup.sh
 ```
 
-**Installs:** Homebrew, Zsh, Oh-My-Zsh, Powerlevel10k, Git, GitHub CLI, Node.js, pnpm, Python 3, Docker, CLI tools, Claude Code, and all Claude settings.
+**Installs:** Homebrew, Zsh, Oh-My-Zsh, Powerlevel10k, Git, GitHub CLI, Node.js, pnpm, Python 3, Docker, CLI tools, Claude Code, and all Claude configuration.
 
 ### Option 2: Bootstrap Only
 
@@ -24,7 +24,7 @@ Just dev tools, no Claude configuration:
 ./bootstrap.sh
 ```
 
-### Option 3: Claude Settings Only
+### Option 3: Claude Config Only
 
 Machine already set up, just want Claude config:
 
@@ -55,7 +55,7 @@ Each component:
 - Prompts before installing
 - Supports "skip all" / "reinstall all" for batch operations
 
-### Claude Settings (`node install.js`)
+### Claude Config (`node install.js`)
 
 **Installation Modes:**
 - **Minimal** - Settings + permissions only
@@ -89,11 +89,11 @@ After installation, see `CLAUDE_INSTRUCTIONS.md` for help setting up additional 
 ## Updating
 
 ```bash
-cd ~/claude-settings
+cd ~/devkit
 git pull
 ./setup.sh          # Full update
 # OR
-node install.js     # Just Claude settings
+node install.js     # Just Claude config
 ```
 
 Choose "Overwrite all remaining" when prompted to update all files.
@@ -128,11 +128,11 @@ Each agent is a specialized subagent with scoped tool access and turn limits.
 ## Customization
 
 ### Adding New Agents
-1. Create a markdown file in `agents/`
+1. Create a markdown file in `claude/agents/`
 2. Add the file to `src/packages.js` under the agents package
 
 ### Adding New Skills
-1. Create a directory in `skills/<skill-name>/`
+1. Create a directory in `claude/skills/<skill-name>/`
 2. Add a `SKILL.md` inside it
 3. Add the file to `src/packages.js` under the skills package
 
