@@ -22,6 +22,7 @@
       "browser_snapshot": true
     },
     "mcp__playwright__*": true,
+    "mcp__context7__*": true,
     "mcp__ide__*": true,
     "mcp__exa__*": true,
     "mcp__Ref__*": true,
