@@ -1,5 +1,5 @@
 ---
-name: add-commit
+name: git-commit
 description: Git add and commit with conventional commit format. No AI watermarks.
 disable-model-invocation: true
 ---

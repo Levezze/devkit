@@ -69,7 +69,7 @@ If you prefer to configure MCP servers manually, add them to `~/.mcp.json`:
 
 | Command | Description |
 |---------|-------------|
-| /add-commit | Add and commit with conventional format |
+| /git-commit | Add and commit with conventional format |
 | /pr | Generate PR descriptions |
 | /review-code | Code quality review |
 | /document | Generate documentation |
