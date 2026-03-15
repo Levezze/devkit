@@ -139,7 +139,7 @@ detect_os() {
 # ============================================================================
 
 install_homebrew() {
-  print_step 1 13 "Checking Homebrew..."
+  print_step 1 14 "Checking Homebrew..."
 
   if command -v brew &> /dev/null; then
     local version=$(brew --version | head -n1 | awk '{print $2}')
@@ -166,7 +166,7 @@ install_homebrew() {
 }
 
 install_zsh() {
-  print_step 2 13 "Checking Zsh..."
+  print_step 2 14 "Checking Zsh..."
 
   if command -v zsh &> /dev/null; then
     local version=$(zsh --version | awk '{print $2}')
@@ -202,7 +202,7 @@ install_zsh() {
 }
 
 install_ohmyzsh() {
-  print_step 3 13 "Checking Oh-My-Zsh..."
+  print_step 3 14 "Checking Oh-My-Zsh..."
 
   if [[ -d "$HOME/.oh-my-zsh" ]]; then
     if ! prompt_existing "Oh-My-Zsh" "installed"; then
@@ -222,8 +222,42 @@ install_ohmyzsh() {
   print_success "Oh-My-Zsh installed"
 }
 
+install_zsh_plugins() {
+  print_step 4 14 "Installing Zsh plugins..."
+
+  local custom_dir="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins"
+
+  if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
+    print_warning "Oh-My-Zsh not found, skipping plugin installation"
+    return 0
+  fi
+
+  if ! confirm "Install Zsh plugins (autosuggestions, syntax-highlighting, autocomplete)?"; then
+    return 0
+  fi
+
+  local plugins=(
+    "zsh-autosuggestions:https://github.com/zsh-users/zsh-autosuggestions"
+    "zsh-syntax-highlighting:https://github.com/zsh-users/zsh-syntax-highlighting"
+    "zsh-autocomplete:https://github.com/marlonrichert/zsh-autocomplete"
+  )
+
+  for entry in "${plugins[@]}"; do
+    local name="${entry%%:*}"
+    local url="${entry#*:}"
+    local dest="$custom_dir/$name"
+
+    if [[ -d "$dest" ]]; then
+      print_success "$name (already installed)"
+    else
+      git clone --depth=1 "$url" "$dest" 2>/dev/null
+      print_success "$name"
+    fi
+  done
+}
+
 install_p10k() {
-  print_step 4 13 "Checking Powerlevel10k..."
+  print_step 5 14 "Checking Powerlevel10k..."
 
   local p10k_dir="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
 
@@ -258,7 +292,7 @@ install_p10k() {
 }
 
 install_git() {
-  print_step 5 13 "Checking Git..."
+  print_step 6 14 "Checking Git..."
 
   if command -v git &> /dev/null; then
     local version=$(git --version | awk '{print $3}')
@@ -278,7 +312,7 @@ install_git() {
 }
 
 install_gh() {
-  print_step 6 13 "Checking GitHub CLI..."
+  print_step 7 14 "Checking GitHub CLI..."
 
   if command -v gh &> /dev/null; then
     local version=$(gh --version | head -n1 | awk '{print $3}')
@@ -310,7 +344,7 @@ install_gh() {
 }
 
 install_node() {
-  print_step 7 13 "Checking Node.js..."
+  print_step 8 14 "Checking Node.js..."
 
   if command -v node &> /dev/null; then
     local version=$(node --version)
@@ -353,7 +387,7 @@ install_node() {
 }
 
 install_pnpm() {
-  print_step 8 13 "Checking pnpm..."
+  print_step 9 14 "Checking pnpm..."
 
   if command -v pnpm &> /dev/null; then
     local version=$(pnpm --version)
@@ -378,7 +412,7 @@ install_pnpm() {
 }
 
 install_python() {
-  print_step 9 13 "Checking Python 3..."
+  print_step 10 14 "Checking Python 3..."
 
   if command -v python3 &> /dev/null; then
     local version=$(python3 --version | awk '{print $2}')
@@ -398,7 +432,7 @@ install_python() {
 }
 
 install_docker() {
-  print_step 10 13 "Checking Docker..."
+  print_step 11 14 "Checking Docker..."
 
   if command -v docker &> /dev/null; then
     local version=$(docker --version | awk '{print $3}' | tr -d ',')
@@ -426,7 +460,7 @@ install_docker() {
 }
 
 install_cli_tools() {
-  print_step 11 13 "Installing CLI tools..."
+  print_step 12 14 "Installing CLI tools..."
 
   local tools=(
     "curl"
@@ -438,9 +472,11 @@ install_cli_tools() {
     "fd"
     "bat"
     "eza"
+    "carapace"
+    "atuin"
   )
 
-  if ! confirm "Install CLI tools (curl, wget, jq, tree, htop, ripgrep, fd, bat, eza)?"; then
+  if ! confirm "Install CLI tools (curl, wget, jq, tree, htop, ripgrep, fd, bat, eza, carapace, atuin)?"; then
     return 0
   fi
 
@@ -457,7 +493,7 @@ install_cli_tools() {
 }
 
 install_claude_code() {
-  print_step 12 13 "Checking Claude Code..."
+  print_step 13 14 "Checking Claude Code..."
 
   if command -v claude &> /dev/null; then
     local version=$(claude --version 2>/dev/null | head -n1 || echo "installed")
@@ -477,7 +513,7 @@ install_claude_code() {
 }
 
 install_claude_config() {
-  print_step 13 13 "Installing Claude config..."
+  print_step 14 14 "Installing Claude config..."
 
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   local src_dir="$SCRIPT_DIR/claude"
@@ -527,6 +563,7 @@ main() {
 
   install_zsh
   install_ohmyzsh
+  install_zsh_plugins
   install_p10k
   install_git
   install_gh

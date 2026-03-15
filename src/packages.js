@@ -43,6 +43,14 @@ export const packages = {
     files: [
       { src: 'claude/plugins/installed_plugins.json', dest: '~/.claude/plugins/installed_plugins.json', name: 'plugins.json' },
     ]
+  },
+  shell: {
+    name: 'Shell Config',
+    description: 'Managed .zshrc with plugins, aliases, and tool inits (carapace, atuin, zoxide, fzf)',
+    category: 'shell',
+    files: [
+      { src: 'shell/zshrc', dest: '~/.zshrc', name: '.zshrc' },
+    ]
   }
 };
 
@@ -55,8 +63,8 @@ export const modes = {
   },
   full: {
     name: 'Full',
-    description: 'Everything (settings, agents, skills, plugins)',
-    packages: ['settings', 'agents', 'skills', 'plugins']
+    description: 'Everything (settings, agents, skills, plugins, shell)',
+    packages: ['settings', 'agents', 'skills', 'plugins', 'shell']
   }
 };
 
