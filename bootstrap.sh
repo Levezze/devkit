@@ -232,14 +232,13 @@ install_zsh_plugins() {
     return 0
   fi
 
-  if ! confirm "Install Zsh plugins (autosuggestions, syntax-highlighting, autocomplete)?"; then
+  if ! confirm "Install Zsh plugins (autosuggestions, syntax-highlighting)?"; then
     return 0
   fi
 
   local plugins=(
     "zsh-autosuggestions:https://github.com/zsh-users/zsh-autosuggestions"
     "zsh-syntax-highlighting:https://github.com/zsh-users/zsh-syntax-highlighting"
-    "zsh-autocomplete:https://github.com/marlonrichert/zsh-autocomplete"
   )
 
   for entry in "${plugins[@]}"; do
