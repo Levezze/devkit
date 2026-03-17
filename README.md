@@ -1,12 +1,12 @@
 # Devkit
 
-Portable development environment bootstrap and Claude Code configuration.
+Portable development environment bootstrap and Claude Code + Codex configuration.
 
 ## Quick Start
 
 ### Option 1: Complete Setup (New Machine)
 
-Sets up your entire dev environment + Claude config:
+Sets up your entire dev environment + Claude/Codex config:
 
 ```bash
 git clone <your-repo-url> ~/devkit
@@ -14,7 +14,7 @@ cd ~/devkit
 ./setup.sh
 ```
 
-**Installs:** Homebrew, Zsh, Oh-My-Zsh, Powerlevel10k, Git, GitHub CLI, Node.js, pnpm, Python 3, Docker, CLI tools, Claude Code, and all Claude configuration.
+**Installs:** Homebrew, Zsh, Oh-My-Zsh, Powerlevel10k, Git, GitHub CLI, Node.js, pnpm, Python 3, Docker, CLI tools, Claude Code, Codex CLI, and all configuration.
 
 ### Option 2: Bootstrap Only
 
@@ -48,7 +48,7 @@ node install.js
 | Python | Python 3 |
 | Containers | Docker |
 | CLI Utilities | curl, wget, jq, tree, htop, ripgrep, fd, bat, eza |
-| AI | Claude Code |
+| AI | Claude Code, Codex CLI |
 
 Each component:
 - Checks if already installed
@@ -69,9 +69,19 @@ Each component:
 |------|-------|
 | Settings | `settings.json`, `settings.local.json`, `mcp.json` |
 | Agents | git-master, code-reviewer, testing-wizard, documentation-scholar, api-planner, senior-interviewer |
-| Skills | /add-commit, /pr, /review-code, /document, /ask |
+| Skills | /git-commit, /pr, /review-code, /document, /ask, /grill-me, /write-a-prd, /prd-to-issues, /tdd, /improve-codebase-architecture |
 
 **Note:** Model selection is intentionally excluded. Configure your preferred model fresh on each machine.
+
+---
+
+## Codex Skill Sharing
+
+Skills are shared between Claude Code and Codex CLI. Each skill directory contains:
+- `SKILL.md` — Claude Code skill definition
+- `agents/openai.yaml` — Codex-compatible agent definition
+
+The bootstrap script automatically symlinks skills to `~/.codex/skills/` when Codex is installed. Skills work identically in both tools.
 
 ---
 
@@ -117,11 +127,16 @@ Each agent is a specialized subagent with scoped tool access and turn limits.
 
 | Skill | What it does |
 |-------|-------------|
-| /add-commit | Stage and commit changes via git-master |
-| /pr | Create a PR with clean description via git-master |
-| /review-code | Two-step review: code-reviewer first, then testing-wizard if needed |
+| /git-commit | Stage and commit changes with conventional commit format |
+| /pr | Create a PR with clean description |
+| /review-code | Two-step review: code quality first, then testing if needed |
 | /document | Generate documentation via documentation-scholar |
-| /ask | Research questions with web search |
+| /ask | Research questions without writing code |
+| /grill-me | Stress-test a plan through relentless interview |
+| /write-a-prd | Create a PRD through interview, codebase exploration, and module design |
+| /prd-to-issues | Break a PRD into vertical-slice GitHub issues |
+| /tdd | Test-driven development with red-green-refactor loop |
+| /improve-codebase-architecture | Find and propose module-deepening refactors |
 
 ---
 
@@ -134,7 +149,8 @@ Each agent is a specialized subagent with scoped tool access and turn limits.
 ### Adding New Skills
 1. Create a directory in `claude/skills/<skill-name>/`
 2. Add a `SKILL.md` inside it
-3. Add the file to `src/packages.js` under the skills package
+3. Add `agents/openai.yaml` for Codex compatibility
+4. Add the files to `src/packages.js` under the skills package
 
 ### Adding Bootstrap Components
 Edit `bootstrap.sh` and add a new `install_*` function.

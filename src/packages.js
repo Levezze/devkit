@@ -26,14 +26,39 @@ export const packages = {
   },
   skills: {
     name: 'Skills',
-    description: 'Custom slash command skills',
+    description: 'Custom slash command skills (shared with Claude Code and Codex)',
     category: 'skills',
     files: [
-      { src: 'claude/skills/add-commit/SKILL.md', dest: '~/.claude/skills/add-commit/SKILL.md', name: '/add-commit' },
+      // Core skills
+      { src: 'claude/skills/git-commit/SKILL.md', dest: '~/.claude/skills/git-commit/SKILL.md', name: '/git-commit' },
+      { src: 'claude/skills/git-commit/agents/openai.yaml', dest: '~/.claude/skills/git-commit/agents/openai.yaml', name: '/git-commit (codex)' },
       { src: 'claude/skills/pr/SKILL.md', dest: '~/.claude/skills/pr/SKILL.md', name: '/pr' },
+      { src: 'claude/skills/pr/agents/openai.yaml', dest: '~/.claude/skills/pr/agents/openai.yaml', name: '/pr (codex)' },
       { src: 'claude/skills/review-code/SKILL.md', dest: '~/.claude/skills/review-code/SKILL.md', name: '/review-code' },
+      { src: 'claude/skills/review-code/agents/openai.yaml', dest: '~/.claude/skills/review-code/agents/openai.yaml', name: '/review-code (codex)' },
       { src: 'claude/skills/document/SKILL.md', dest: '~/.claude/skills/document/SKILL.md', name: '/document' },
+      { src: 'claude/skills/document/agents/openai.yaml', dest: '~/.claude/skills/document/agents/openai.yaml', name: '/document (codex)' },
       { src: 'claude/skills/ask/SKILL.md', dest: '~/.claude/skills/ask/SKILL.md', name: '/ask' },
+      { src: 'claude/skills/ask/agents/openai.yaml', dest: '~/.claude/skills/ask/agents/openai.yaml', name: '/ask (codex)' },
+      // Interview & planning
+      { src: 'claude/skills/grill-me/SKILL.md', dest: '~/.claude/skills/grill-me/SKILL.md', name: '/grill-me' },
+      { src: 'claude/skills/grill-me/agents/openai.yaml', dest: '~/.claude/skills/grill-me/agents/openai.yaml', name: '/grill-me (codex)' },
+      { src: 'claude/skills/write-a-prd/SKILL.md', dest: '~/.claude/skills/write-a-prd/SKILL.md', name: '/write-a-prd' },
+      { src: 'claude/skills/write-a-prd/agents/openai.yaml', dest: '~/.claude/skills/write-a-prd/agents/openai.yaml', name: '/write-a-prd (codex)' },
+      { src: 'claude/skills/prd-to-issues/SKILL.md', dest: '~/.claude/skills/prd-to-issues/SKILL.md', name: '/prd-to-issues' },
+      { src: 'claude/skills/prd-to-issues/agents/openai.yaml', dest: '~/.claude/skills/prd-to-issues/agents/openai.yaml', name: '/prd-to-issues (codex)' },
+      // TDD (multi-file)
+      { src: 'claude/skills/tdd/SKILL.md', dest: '~/.claude/skills/tdd/SKILL.md', name: '/tdd' },
+      { src: 'claude/skills/tdd/deep-modules.md', dest: '~/.claude/skills/tdd/deep-modules.md', name: '/tdd (deep-modules)' },
+      { src: 'claude/skills/tdd/interface-design.md', dest: '~/.claude/skills/tdd/interface-design.md', name: '/tdd (interface-design)' },
+      { src: 'claude/skills/tdd/mocking.md', dest: '~/.claude/skills/tdd/mocking.md', name: '/tdd (mocking)' },
+      { src: 'claude/skills/tdd/refactoring.md', dest: '~/.claude/skills/tdd/refactoring.md', name: '/tdd (refactoring)' },
+      { src: 'claude/skills/tdd/tests.md', dest: '~/.claude/skills/tdd/tests.md', name: '/tdd (tests)' },
+      { src: 'claude/skills/tdd/agents/openai.yaml', dest: '~/.claude/skills/tdd/agents/openai.yaml', name: '/tdd (codex)' },
+      // Architecture improvement (multi-file)
+      { src: 'claude/skills/improve-codebase-architecture/SKILL.md', dest: '~/.claude/skills/improve-codebase-architecture/SKILL.md', name: '/improve-codebase-architecture' },
+      { src: 'claude/skills/improve-codebase-architecture/REFERENCE.md', dest: '~/.claude/skills/improve-codebase-architecture/REFERENCE.md', name: '/improve-codebase-architecture (ref)' },
+      { src: 'claude/skills/improve-codebase-architecture/agents/openai.yaml', dest: '~/.claude/skills/improve-codebase-architecture/agents/openai.yaml', name: '/improve-codebase-architecture (codex)' },
     ]
   },
   plugins: {

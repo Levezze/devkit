@@ -1,0 +1,12 @@
+name: document
+description: Create technical documentation.
+instructions: |
+  Create comprehensive technical documentation.
+
+  Steps:
+  1. Analyze the current state and recent changes
+  2. Identify what type of documentation is needed
+  3. Review existing documentation patterns in the project
+  4. Create professional documentation following detected standards
+
+  Documentation should follow professional standards with clear structure, no emojis, and comprehensive coverage appropriate to the context.

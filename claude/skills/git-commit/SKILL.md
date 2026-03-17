@@ -1,7 +1,7 @@
 ---
 name: git-commit
 description: Git add and commit with conventional commit format. No AI watermarks.
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 Use the git-master subagent to add and commit files with proper conventional commit format. Never uses AI watermarks or bot attributions.

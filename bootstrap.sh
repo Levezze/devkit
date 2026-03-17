@@ -139,7 +139,7 @@ detect_os() {
 # ============================================================================
 
 install_homebrew() {
-  print_step 1 14 "Checking Homebrew..."
+  print_step 1 15 "Checking Homebrew..."
 
   if command -v brew &> /dev/null; then
     local version=$(brew --version | head -n1 | awk '{print $2}')
@@ -166,7 +166,7 @@ install_homebrew() {
 }
 
 install_zsh() {
-  print_step 2 14 "Checking Zsh..."
+  print_step 2 15 "Checking Zsh..."
 
   if command -v zsh &> /dev/null; then
     local version=$(zsh --version | awk '{print $2}')
@@ -202,7 +202,7 @@ install_zsh() {
 }
 
 install_ohmyzsh() {
-  print_step 3 14 "Checking Oh-My-Zsh..."
+  print_step 3 15 "Checking Oh-My-Zsh..."
 
   if [[ -d "$HOME/.oh-my-zsh" ]]; then
     if ! prompt_existing "Oh-My-Zsh" "installed"; then
@@ -223,7 +223,7 @@ install_ohmyzsh() {
 }
 
 install_zsh_plugins() {
-  print_step 4 14 "Installing Zsh plugins..."
+  print_step 4 15 "Installing Zsh plugins..."
 
   local custom_dir="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins"
 
@@ -256,7 +256,7 @@ install_zsh_plugins() {
 }
 
 install_p10k() {
-  print_step 5 14 "Checking Powerlevel10k..."
+  print_step 5 15 "Checking Powerlevel10k..."
 
   local p10k_dir="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
 
@@ -291,7 +291,7 @@ install_p10k() {
 }
 
 install_git() {
-  print_step 6 14 "Checking Git..."
+  print_step 6 15 "Checking Git..."
 
   if command -v git &> /dev/null; then
     local version=$(git --version | awk '{print $3}')
@@ -311,7 +311,7 @@ install_git() {
 }
 
 install_gh() {
-  print_step 7 14 "Checking GitHub CLI..."
+  print_step 7 15 "Checking GitHub CLI..."
 
   if command -v gh &> /dev/null; then
     local version=$(gh --version | head -n1 | awk '{print $3}')
@@ -343,7 +343,7 @@ install_gh() {
 }
 
 install_node() {
-  print_step 8 14 "Checking Node.js..."
+  print_step 8 15 "Checking Node.js..."
 
   if command -v node &> /dev/null; then
     local version=$(node --version)
@@ -386,7 +386,7 @@ install_node() {
 }
 
 install_pnpm() {
-  print_step 9 14 "Checking pnpm..."
+  print_step 9 15 "Checking pnpm..."
 
   if command -v pnpm &> /dev/null; then
     local version=$(pnpm --version)
@@ -411,7 +411,7 @@ install_pnpm() {
 }
 
 install_python() {
-  print_step 10 14 "Checking Python 3..."
+  print_step 10 15 "Checking Python 3..."
 
   if command -v python3 &> /dev/null; then
     local version=$(python3 --version | awk '{print $2}')
@@ -431,7 +431,7 @@ install_python() {
 }
 
 install_docker() {
-  print_step 11 14 "Checking Docker..."
+  print_step 11 15 "Checking Docker..."
 
   if command -v docker &> /dev/null; then
     local version=$(docker --version | awk '{print $3}' | tr -d ',')
@@ -459,7 +459,7 @@ install_docker() {
 }
 
 install_cli_tools() {
-  print_step 12 14 "Installing CLI tools..."
+  print_step 12 15 "Installing CLI tools..."
 
   local tools=(
     "curl"
@@ -492,7 +492,7 @@ install_cli_tools() {
 }
 
 install_claude_code() {
-  print_step 13 14 "Checking Claude Code..."
+  print_step 13 15 "Checking Claude Code..."
 
   if command -v claude &> /dev/null; then
     local version=$(claude --version 2>/dev/null | head -n1 || echo "installed")
@@ -511,8 +511,28 @@ install_claude_code() {
   print_success "Claude Code installed"
 }
 
+install_codex() {
+  print_step 14 15 "Checking Codex CLI..."
+
+  if command -v codex &> /dev/null; then
+    local version=$(codex --version 2>/dev/null | head -n1 || echo "installed")
+    if ! prompt_existing "Codex CLI" "$version"; then
+      return 0
+    fi
+  fi
+
+  if ! confirm "Install Codex CLI?"; then
+    return 0
+  fi
+
+  print_info "Installing Codex CLI..."
+  npm install -g @openai/codex
+
+  print_success "Codex CLI installed"
+}
+
 install_claude_config() {
-  print_step 14 14 "Installing Claude config..."
+  print_step 15 15 "Installing Claude config..."
 
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   local src_dir="$SCRIPT_DIR/claude"
@@ -537,6 +557,17 @@ install_claude_config() {
   fi
 
   print_success "Claude config installed to $dest_dir"
+
+  # Symlink skills to Codex
+  local codex_skills="$HOME/.codex/skills"
+  if [[ -d "$HOME/.codex" ]]; then
+    mkdir -p "$codex_skills"
+    for skill_dir in "$dest_dir"/skills/*/; do
+      local skill_name=$(basename "$skill_dir")
+      ln -sfn "$skill_dir" "$codex_skills/$skill_name"
+    done
+    print_success "Skills symlinked to Codex ($codex_skills)"
+  fi
 }
 
 # ============================================================================
@@ -572,6 +603,7 @@ main() {
   install_docker
   install_cli_tools
   install_claude_code
+  install_codex
   install_claude_config
 
   # Final summary

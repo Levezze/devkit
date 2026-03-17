@@ -1,0 +1,15 @@
+name: improve-codebase-architecture
+description: Explore a codebase to find opportunities for architectural improvement, focusing on deepening shallow modules.
+instructions: |
+  Explore a codebase to surface architectural friction and propose module-deepening refactors.
+
+  A deep module (Ousterhout) has a small interface hiding a large implementation — more testable, more navigable.
+
+  Process:
+  1. Explore the codebase organically, noting friction: bouncing between files, shallow modules, tightly-coupled code, untested areas
+  2. Present numbered candidates with: cluster, coupling reason, dependency category, test impact
+  3. User picks a candidate
+  4. Frame the problem space (constraints, dependencies, rough code sketch)
+  5. Design 3+ radically different interfaces for the deepened module
+  6. User picks an interface
+  7. Create a refactor RFC as a GitHub issue via `gh issue create`

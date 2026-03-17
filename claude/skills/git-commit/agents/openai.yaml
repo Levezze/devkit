@@ -1,0 +1,11 @@
+name: git-commit
+description: Git add and commit with conventional commit format. No AI watermarks.
+instructions: |
+  Stage and commit files with proper conventional commit format. Never use AI watermarks or bot attributions.
+
+  Steps:
+  1. Check git status and diff to understand changes
+  2. Detect project's commit convention
+  3. Add relevant files to staging area
+  4. Create atomic, focused commit with professional message (no watermarks)
+  5. Ensure the commit message explains the "why" and follows established patterns

@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node install.js"
   },
-  "keywords": ["claude", "claude-code", "settings", "installer"],
+  "keywords": ["claude", "claude-code", "codex", "settings", "installer", "devkit"],
   "author": "",
   "license": "MIT",
   "type": "module",
