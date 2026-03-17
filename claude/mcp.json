@@ -3,7 +3,7 @@
     "context7": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp", "--api-key", "ctx7sk-d91ff96b-c860-40b4-93f3-ba8bfaa74987"],
+      "args": ["-y", "@upstash/context7-mcp", "--api-key", "__CONTEXT7_API_KEY__"],
       "env": {}
     },
     "playwright": {

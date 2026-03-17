@@ -8,6 +8,100 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
+// Registry of known API keys: placeholder -> { label, url }
+const API_KEYS = {
+  CONTEXT7_API_KEY: {
+    label: 'Context7 API key',
+    url: 'https://context7.com/dashboard',
+  },
+};
+
+// Load .env file into a key-value map
+function loadEnv() {
+  const envPath = path.join(ROOT_DIR, '.env');
+  const vars = {};
+  try {
+    const content = fs.readFileSync(envPath, 'utf-8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eq = trimmed.indexOf('=');
+      if (eq === -1) continue;
+      vars[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim();
+    }
+  } catch {
+    // .env is optional
+  }
+  return vars;
+}
+
+// Save resolved vars back to .env for future runs
+function saveEnv(vars) {
+  const envPath = path.join(ROOT_DIR, '.env');
+  const lines = Object.entries(vars).map(([k, v]) => `${k}=${v}`);
+  fs.writeFileSync(envPath, lines.join('\n') + '\n', 'utf-8');
+}
+
+// Scan source files for __PLACEHOLDER__ tokens, return unique keys
+function findPlaceholders(files) {
+  const keys = new Set();
+  for (const file of files) {
+    const srcPath = path.join(ROOT_DIR, file.src);
+    try {
+      const content = fs.readFileSync(srcPath, 'utf-8');
+      for (const match of content.matchAll(/__([A-Z0-9_]+)__/g)) {
+        keys.add(match[1]);
+      }
+    } catch { /* skip missing files */ }
+  }
+  return keys;
+}
+
+// Prompt user for any missing API keys before installation
+async function resolveApiKeys(files) {
+  const envVars = loadEnv();
+  const needed = findPlaceholders(files);
+  let changed = false;
+
+  for (const key of needed) {
+    if (envVars[key]) continue;
+
+    const info = API_KEYS[key];
+    const label = info?.label ?? key;
+
+    console.log('');
+    if (info?.url) {
+      console.log(chalk.cyan(`  ${label}`));
+      console.log(chalk.gray(`  Get one at: ${info.url}`));
+    }
+
+    const { value } = await inquirer.prompt([{
+      type: 'input',
+      name: 'value',
+      message: `Enter your ${label} (or press Enter to skip):`,
+    }]);
+
+    if (value.trim()) {
+      envVars[key] = value.trim();
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    saveEnv(envVars);
+    console.log(chalk.gray('  Saved to .env for future runs'));
+  }
+
+  return envVars;
+}
+
+// Substitute __PLACEHOLDER__ tokens in file content
+function substituteEnvVars(content, envVars) {
+  return content.replace(/__([A-Z0-9_]+)__/g, (match, key) => {
+    return envVars[key] ?? match;
+  });
+}
+
 // Expand ~ to home directory
 function expandPath(filePath) {
   if (filePath.startsWith('~')) {
@@ -70,8 +164,8 @@ function ensureDir(dirPath) {
   }
 }
 
-// Copy a single file
-async function copyFile(file) {
+// Copy a single file, substituting env vars
+async function copyFile(file, envVars) {
   const srcPath = path.join(ROOT_DIR, file.src);
   const destPath = expandPath(file.dest);
   const destDir = path.dirname(destPath);
@@ -94,9 +188,11 @@ async function copyFile(file) {
   // Ensure destination directory exists
   ensureDir(destDir);
 
-  // Copy the file
+  // Copy the file, substituting env vars in text files
   try {
-    fs.copyFileSync(srcPath, destPath);
+    const content = fs.readFileSync(srcPath, 'utf-8');
+    const processed = substituteEnvVars(content, envVars);
+    fs.writeFileSync(destPath, processed, 'utf-8');
     console.log(chalk.green(`  ✓ Copied ${file.name}`));
     return { success: true, skipped: false, file };
   } catch (error) {
@@ -110,6 +206,9 @@ export async function installFiles(files) {
   // Reset overwrite strategy for each installation
   overwriteStrategy = null;
 
+  // Resolve API keys before copying
+  const envVars = await resolveApiKeys(files);
+
   const results = {
     copied: 0,
     skipped: 0,
@@ -121,7 +220,7 @@ export async function installFiles(files) {
   console.log('');
 
   for (const file of files) {
-    const result = await copyFile(file);
+    const result = await copyFile(file, envVars);
     if (result.success) {
       if (result.skipped) {
         results.skipped++;

@@ -132,11 +132,13 @@ Each agent is a specialized subagent with scoped tool access and turn limits.
 | /review-code | Two-step review: code quality first, then testing if needed |
 | /document | Generate documentation via documentation-scholar |
 | /ask | Research questions without writing code |
-| /grill-me | Stress-test a plan through relentless interview |
-| /write-a-prd | Create a PRD through interview, codebase exploration, and module design |
-| /prd-to-issues | Break a PRD into vertical-slice GitHub issues |
-| /tdd | Test-driven development with red-green-refactor loop |
-| /improve-codebase-architecture | Find and propose module-deepening refactors |
+| /grill-me* | Stress-test a plan through relentless interview |
+| /write-a-prd* | Create a PRD through interview, codebase exploration, and module design |
+| /prd-to-issues* | Break a PRD into vertical-slice GitHub issues |
+| /tdd* | Test-driven development with red-green-refactor loop |
+| /improve-codebase-architecture* | Find and propose module-deepening refactors |
+
+\* Adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT)
 
 ---
 
@@ -164,6 +166,15 @@ Edit `bootstrap.sh` and add a new `install_*` function.
 - **WSL2**
 
 ---
+
+## Credits
+
+The following skills are adapted from [Matt Pocock's skills collection](https://github.com/mattpocock/skills) (MIT):
+- /grill-me
+- /write-a-prd
+- /prd-to-issues
+- /tdd
+- /improve-codebase-architecture
 
 ## License
 
