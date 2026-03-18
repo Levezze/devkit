@@ -6,6 +6,7 @@ export const packages = {
     description: 'Permissions, auto-approve settings, and MCP configuration',
     category: 'settings',
     files: [
+      { src: 'claude/CLAUDE.md', dest: '~/CLAUDE.md', name: 'CLAUDE.md' },
       { src: 'claude/settings.json', dest: '~/.claude/settings.json', name: 'settings.json' },
       { src: 'claude/settings.local.json', dest: '~/.claude/settings.local.json', name: 'settings.local.json' },
       { src: 'claude/mcp.json', dest: '~/.mcp.json', name: 'mcp.json' },
