@@ -56,6 +56,9 @@ export const packages = {
       { src: 'claude/skills/tdd/refactoring.md', dest: '~/.claude/skills/tdd/refactoring.md', name: '/tdd (refactoring)' },
       { src: 'claude/skills/tdd/tests.md', dest: '~/.claude/skills/tdd/tests.md', name: '/tdd (tests)' },
       { src: 'claude/skills/tdd/agents/openai.yaml', dest: '~/.claude/skills/tdd/agents/openai.yaml', name: '/tdd (codex)' },
+      // Post-implementation review
+      { src: 'claude/skills/evaluate/SKILL.md', dest: '~/.claude/skills/evaluate/SKILL.md', name: '/evaluate' },
+      { src: 'claude/skills/evaluate/agents/openai.yaml', dest: '~/.claude/skills/evaluate/agents/openai.yaml', name: '/evaluate (codex)' },
       // Architecture improvement (multi-file)
       { src: 'claude/skills/improve-codebase-architecture/SKILL.md', dest: '~/.claude/skills/improve-codebase-architecture/SKILL.md', name: '/improve-codebase-architecture' },
       { src: 'claude/skills/improve-codebase-architecture/REFERENCE.md', dest: '~/.claude/skills/improve-codebase-architecture/REFERENCE.md', name: '/improve-codebase-architecture (ref)' },

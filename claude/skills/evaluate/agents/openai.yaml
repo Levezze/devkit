@@ -1,0 +1,4 @@
+interface:
+  display_name: "Evaluate"
+  short_description: "Post-implementation review with architecture summary and quiz"
+  default_prompt: "Evaluate what was just implemented — summarize the changes and quiz me on the design decisions."
