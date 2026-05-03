@@ -1,0 +1,4 @@
+interface:
+  display_name: "Handoff"
+  short_description: "Generate a handoff document to another team, repo, or agent"
+  default_prompt: "Write a handoff document from my perspective."

@@ -113,11 +113,23 @@ function expandPath(filePath) {
 // Overwrite strategy state
 let overwriteStrategy = null; // null, 'all', 'none'
 
-// Check if file exists
+// Check if file exists (lstat — does not follow symlinks)
 function fileExists(filePath) {
   try {
-    fs.accessSync(filePath);
+    fs.lstatSync(filePath);
     return true;
+  } catch {
+    return false;
+  }
+}
+
+// Returns true if destPath is already a symlink resolving to expectedTarget
+function isCorrectSymlink(destPath, expectedTarget) {
+  try {
+    const stat = fs.lstatSync(destPath);
+    if (!stat.isSymbolicLink()) return false;
+    const actual = fs.readlinkSync(destPath);
+    return path.resolve(path.dirname(destPath), actual) === path.resolve(expectedTarget);
   } catch {
     return false;
   }
@@ -183,6 +195,8 @@ async function copyFile(file, envVars) {
       console.log(chalk.gray(`  ○ Skipped ${file.name}`));
       return { success: true, skipped: true, file };
     }
+    // Remove existing dest (could be file or symlink) before writing
+    fs.rmSync(destPath, { force: true });
   }
 
   // Ensure destination directory exists
@@ -197,6 +211,43 @@ async function copyFile(file, envVars) {
     return { success: true, skipped: false, file };
   } catch (error) {
     console.log(chalk.red(`  ✗ Failed to copy ${file.name}: ${error.message}`));
+    return { success: false, skipped: false, file };
+  }
+}
+
+// Symlink a single file/dir from devkit into the destination
+async function linkFile(file) {
+  const srcPath = path.join(ROOT_DIR, file.src);
+  const destPath = expandPath(file.dest);
+  const destDir = path.dirname(destPath);
+
+  if (!fileExists(srcPath)) {
+    console.log(chalk.red(`  ✗ Source not found: ${file.src}`));
+    return { success: false, skipped: false, file };
+  }
+
+  // Already a correct symlink → silent no-op
+  if (isCorrectSymlink(destPath, srcPath)) {
+    return { success: true, skipped: true, file };
+  }
+
+  if (fileExists(destPath)) {
+    const shouldOverwrite = await handleExistingFile(destPath, file.name);
+    if (!shouldOverwrite) {
+      console.log(chalk.gray(`  ○ Skipped ${file.name}`));
+      return { success: true, skipped: true, file };
+    }
+    fs.rmSync(destPath, { recursive: true, force: true });
+  }
+
+  ensureDir(destDir);
+
+  try {
+    fs.symlinkSync(srcPath, destPath);
+    console.log(chalk.green(`  ✓ Linked ${file.name}`));
+    return { success: true, skipped: false, file };
+  } catch (error) {
+    console.log(chalk.red(`  ✗ Failed to link ${file.name}: ${error.message}`));
     return { success: false, skipped: false, file };
   }
 }
@@ -220,7 +271,9 @@ export async function installFiles(files) {
   console.log('');
 
   for (const file of files) {
-    const result = await copyFile(file, envVars);
+    const result = file.mode === 'link'
+      ? await linkFile(file)
+      : await copyFile(file, envVars);
     if (result.success) {
       if (result.skipped) {
         results.skipped++;
