@@ -1,0 +1,4 @@
+interface:
+  display_name: "TDD"
+  short_description: "Test-driven development with red-green-refactor"
+  default_prompt: "Let's build this feature using test-driven development with red-green-refactor cycles."

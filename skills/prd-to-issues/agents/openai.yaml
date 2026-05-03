@@ -1,0 +1,4 @@
+interface:
+  display_name: "PRD to Issues"
+  short_description: "Break a PRD into vertical-slice GitHub issues"
+  default_prompt: "Break the PRD into independently-grabbable GitHub issues using vertical slices."

@@ -113,11 +113,27 @@ function expandPath(filePath) {
 // Overwrite strategy state
 let overwriteStrategy = null; // null, 'all', 'none'
 
-// Check if file exists
+// Check if file exists (lstat — does not follow symlinks)
 function fileExists(filePath) {
   try {
-    fs.accessSync(filePath);
+    fs.lstatSync(filePath);
     return true;
+  } catch {
+    return false;
+  }
+}
+
+// Returns true if destPath is already a symlink resolving to expectedTarget.
+// linkFile always passes an absolute srcPath to symlinkSync, so readlink returns
+// an absolute path; path.resolve(dir, absolute) returns absolute unchanged.
+// The dir prefix is harmless and keeps the comparison correct if a future change
+// switches to relative symlinks.
+function isCorrectSymlink(destPath, expectedTarget) {
+  try {
+    const stat = fs.lstatSync(destPath);
+    if (!stat.isSymbolicLink()) return false;
+    const actual = fs.readlinkSync(destPath);
+    return path.resolve(path.dirname(destPath), actual) === path.resolve(expectedTarget);
   } catch {
     return false;
   }
@@ -183,6 +199,8 @@ async function copyFile(file, envVars) {
       console.log(chalk.gray(`  ○ Skipped ${file.name}`));
       return { success: true, skipped: true, file };
     }
+    // Remove existing dest (could be file or symlink) before writing
+    fs.rmSync(destPath, { force: true });
   }
 
   // Ensure destination directory exists
@@ -197,6 +215,43 @@ async function copyFile(file, envVars) {
     return { success: true, skipped: false, file };
   } catch (error) {
     console.log(chalk.red(`  ✗ Failed to copy ${file.name}: ${error.message}`));
+    return { success: false, skipped: false, file };
+  }
+}
+
+// Symlink a single file/dir from devkit into the destination
+async function linkFile(file) {
+  const srcPath = path.join(ROOT_DIR, file.src);
+  const destPath = expandPath(file.dest);
+  const destDir = path.dirname(destPath);
+
+  if (!fileExists(srcPath)) {
+    console.log(chalk.red(`  ✗ Source not found: ${file.src}`));
+    return { success: false, skipped: false, file };
+  }
+
+  // Already a correct symlink → silent no-op
+  if (isCorrectSymlink(destPath, srcPath)) {
+    return { success: true, skipped: true, file };
+  }
+
+  if (fileExists(destPath)) {
+    const shouldOverwrite = await handleExistingFile(destPath, file.name);
+    if (!shouldOverwrite) {
+      console.log(chalk.gray(`  ○ Skipped ${file.name}`));
+      return { success: true, skipped: true, file };
+    }
+    fs.rmSync(destPath, { recursive: true, force: true });
+  }
+
+  ensureDir(destDir);
+
+  try {
+    fs.symlinkSync(srcPath, destPath);
+    console.log(chalk.green(`  ✓ Linked ${file.name}`));
+    return { success: true, skipped: false, file };
+  } catch (error) {
+    console.log(chalk.red(`  ✗ Failed to link ${file.name}: ${error.message}`));
     return { success: false, skipped: false, file };
   }
 }
@@ -220,7 +275,9 @@ export async function installFiles(files) {
   console.log('');
 
   for (const file of files) {
-    const result = await copyFile(file, envVars);
+    const result = file.mode === 'link'
+      ? await linkFile(file)
+      : await copyFile(file, envVars);
     if (result.success) {
       if (result.skipped) {
         results.skipped++;
@@ -253,4 +310,46 @@ export async function installFiles(files) {
   }
 
   return results;
+}
+
+// Mirror skill directories into ~/.codex/skills/<name> as symlinks.
+// No-ops silently if Codex isn't installed (~/.codex/skills missing).
+// Only acts on entries whose dest is under ~/.claude/skills/ — these are the
+// canonical skill directories. Always runs after installFiles when skills are
+// included; the codex side never goes stale relative to the claude side.
+export async function mirrorSkillsToCodex(files) {
+  const codexSkillsDir = path.join(process.env.HOME, '.codex', 'skills');
+  if (!fileExists(codexSkillsDir)) return { mirrored: 0, skipped: 0 };
+
+  const skillEntries = files.filter(f =>
+    f.mode === 'link' && f.dest.startsWith('~/.claude/skills/')
+  );
+  if (skillEntries.length === 0) return { mirrored: 0, skipped: 0 };
+
+  console.log('');
+  console.log(chalk.cyan('Mirroring skills to Codex...'));
+
+  const result = { mirrored: 0, skipped: 0 };
+  for (const file of skillEntries) {
+    const srcPath = path.join(ROOT_DIR, file.src);
+    const skillName = path.basename(file.dest);
+    const codexPath = path.join(codexSkillsDir, skillName);
+
+    if (isCorrectSymlink(codexPath, srcPath)) {
+      result.skipped++;
+      continue;
+    }
+    if (fileExists(codexPath)) fs.rmSync(codexPath, { recursive: true, force: true });
+    try {
+      fs.symlinkSync(srcPath, codexPath);
+      console.log(chalk.green(`  ✓ Linked ${skillName} → Codex`));
+      result.mirrored++;
+    } catch (error) {
+      console.log(chalk.red(`  ✗ Failed to mirror ${skillName}: ${error.message}`));
+    }
+  }
+  if (result.mirrored === 0 && result.skipped > 0) {
+    console.log(chalk.gray(`  ○ ${result.skipped} already current`));
+  }
+  return result;
 }

@@ -1,0 +1,4 @@
+interface:
+  display_name: "E2E Playwright Test"
+  short_description: "LLM-piloted end-to-end smoke against a deployed app"
+  default_prompt: "Run the end-to-end Playwright smoke test for this repo."

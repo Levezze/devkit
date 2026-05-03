@@ -1,0 +1,4 @@
+interface:
+  display_name: "PR Review"
+  short_description: "Diligent end-of-cycle PR review (read-only, presents findings)"
+  default_prompt: "Review the current PR. Present findings without applying fixes."

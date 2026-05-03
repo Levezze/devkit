@@ -1,7 +1,7 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { packages, modes, getFilesForPackages, getAllItems } from './packages.js';
-import { installFiles } from './installer.js';
+import { installFiles, mirrorSkillsToCodex } from './installer.js';
 
 // Print header
 function printHeader() {
@@ -159,6 +159,9 @@ export async function runCLI() {
 
     // Install
     await installFiles(filesToInstall);
+
+    // Mirror skill directories into Codex if installed
+    await mirrorSkillsToCodex(filesToInstall);
 
   } catch (error) {
     if (error.name === 'ExitPromptError') {

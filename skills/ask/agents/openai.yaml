@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ask"
+  short_description: "Answer questions without writing code"
+  default_prompt: "Answer my question without modifying any files."

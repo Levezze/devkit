@@ -1,0 +1,4 @@
+interface:
+  display_name: "Grill Me"
+  short_description: "Stress-test a plan or design through relentless questioning"
+  default_prompt: "Grill me on my current plan or design until we reach shared understanding."

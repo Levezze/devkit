@@ -12,6 +12,10 @@ maxTurns: 15
 - NO emoji watermarks
 - Commits and PRs must read as human-written
 
+## Branch Protection
+
+Before ANY commit, check the current branch. NEVER commit to `main`, `demo`, or `production`. If on a protected branch, STOP and tell the user to switch to a feature branch. Only proceed on protected branches if the user EXPLICITLY overrides this rule.
+
 ## Commit Format
 
 Use conventional commits: `<type>(<scope>): <subject>`

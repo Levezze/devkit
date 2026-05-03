@@ -1,0 +1,4 @@
+interface:
+  display_name: "Improve Architecture"
+  short_description: "Find and propose architectural improvements"
+  default_prompt: "Explore this codebase for architectural improvement opportunities focusing on deep modules and testability."
