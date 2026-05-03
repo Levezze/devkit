@@ -1,6 +1,6 @@
 ---
 name: e2e-playwright-test
-description: LLM-piloted end-to-end smoke against a deployed app. Drives Playwright MCP through a repo-specific checklist stored at docs/guides/e2e-playwright-test.md. If the guide is missing or has unfilled slots, runs a /grill-me interview to populate it. Args: --demo | --dev | --local | --prod (env), optional --user <N> (1..N from guide), --record-only (observe + update fixtures, skip pass/fail). Use when user wants to run e2e, smoke-test the app, validate a deploy, or mentions /e2e-playwright-test.
+description: "LLM-piloted end-to-end smoke against a deployed app. Drives Playwright MCP through a repo-specific checklist stored at docs/guides/e2e-playwright-test.md. If the guide is missing or has unfilled slots, runs a /grill-me interview to populate it. Args: --demo | --dev | --local | --prod (env), optional --user <N> (1..N from guide), --record-only (observe + update fixtures, skip pass/fail). Use when user wants to run e2e, smoke-test the app, validate a deploy, or mentions /e2e-playwright-test."
 ---
 
 # e2e-playwright-test
