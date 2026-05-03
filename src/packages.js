@@ -29,61 +29,27 @@ export const packages = {
   },
   skills: {
     name: 'Skills',
-    description: 'Custom slash command skills (shared with Claude Code and Codex)',
+    description: 'Custom slash command skills (shared with Claude Code and Codex). Each entry symlinks the whole skill directory so files added later appear automatically.',
     category: 'skills',
     defaultMode: 'link',
     files: [
-      // Core skills
-      { src: 'skills/git-commit/SKILL.md', dest: '~/.claude/skills/git-commit/SKILL.md', name: '/git-commit' },
-      { src: 'skills/git-commit/agents/openai.yaml', dest: '~/.claude/skills/git-commit/agents/openai.yaml', name: '/git-commit (codex)' },
-      { src: 'skills/pr/SKILL.md', dest: '~/.claude/skills/pr/SKILL.md', name: '/pr' },
-      { src: 'skills/pr/agents/openai.yaml', dest: '~/.claude/skills/pr/agents/openai.yaml', name: '/pr (codex)' },
-      { src: 'skills/review-code/SKILL.md', dest: '~/.claude/skills/review-code/SKILL.md', name: '/review-code' },
-      { src: 'skills/review-code/agents/openai.yaml', dest: '~/.claude/skills/review-code/agents/openai.yaml', name: '/review-code (codex)' },
-      { src: 'skills/document/SKILL.md', dest: '~/.claude/skills/document/SKILL.md', name: '/document' },
-      { src: 'skills/document/agents/openai.yaml', dest: '~/.claude/skills/document/agents/openai.yaml', name: '/document (codex)' },
-      { src: 'skills/ask/SKILL.md', dest: '~/.claude/skills/ask/SKILL.md', name: '/ask' },
-      { src: 'skills/ask/agents/openai.yaml', dest: '~/.claude/skills/ask/agents/openai.yaml', name: '/ask (codex)' },
-      // Interview & planning
-      { src: 'skills/grill-me/SKILL.md', dest: '~/.claude/skills/grill-me/SKILL.md', name: '/grill-me' },
-      { src: 'skills/grill-me/agents/openai.yaml', dest: '~/.claude/skills/grill-me/agents/openai.yaml', name: '/grill-me (codex)' },
-      { src: 'skills/write-a-prd/SKILL.md', dest: '~/.claude/skills/write-a-prd/SKILL.md', name: '/write-a-prd' },
-      { src: 'skills/write-a-prd/agents/openai.yaml', dest: '~/.claude/skills/write-a-prd/agents/openai.yaml', name: '/write-a-prd (codex)' },
-      { src: 'skills/prd-to-issues/SKILL.md', dest: '~/.claude/skills/prd-to-issues/SKILL.md', name: '/prd-to-issues' },
-      { src: 'skills/prd-to-issues/agents/openai.yaml', dest: '~/.claude/skills/prd-to-issues/agents/openai.yaml', name: '/prd-to-issues (codex)' },
-      // TDD (multi-file)
-      { src: 'skills/tdd/SKILL.md', dest: '~/.claude/skills/tdd/SKILL.md', name: '/tdd' },
-      { src: 'skills/tdd/deep-modules.md', dest: '~/.claude/skills/tdd/deep-modules.md', name: '/tdd (deep-modules)' },
-      { src: 'skills/tdd/interface-design.md', dest: '~/.claude/skills/tdd/interface-design.md', name: '/tdd (interface-design)' },
-      { src: 'skills/tdd/mocking.md', dest: '~/.claude/skills/tdd/mocking.md', name: '/tdd (mocking)' },
-      { src: 'skills/tdd/refactoring.md', dest: '~/.claude/skills/tdd/refactoring.md', name: '/tdd (refactoring)' },
-      { src: 'skills/tdd/tests.md', dest: '~/.claude/skills/tdd/tests.md', name: '/tdd (tests)' },
-      { src: 'skills/tdd/agents/openai.yaml', dest: '~/.claude/skills/tdd/agents/openai.yaml', name: '/tdd (codex)' },
-      // Post-implementation review
-      { src: 'skills/evaluate/SKILL.md', dest: '~/.claude/skills/evaluate/SKILL.md', name: '/evaluate' },
-      { src: 'skills/evaluate/agents/openai.yaml', dest: '~/.claude/skills/evaluate/agents/openai.yaml', name: '/evaluate (codex)' },
-      // Architecture improvement (multi-file)
-      { src: 'skills/improve-codebase-architecture/SKILL.md', dest: '~/.claude/skills/improve-codebase-architecture/SKILL.md', name: '/improve-codebase-architecture' },
-      { src: 'skills/improve-codebase-architecture/REFERENCE.md', dest: '~/.claude/skills/improve-codebase-architecture/REFERENCE.md', name: '/improve-codebase-architecture (ref)' },
-      { src: 'skills/improve-codebase-architecture/agents/openai.yaml', dest: '~/.claude/skills/improve-codebase-architecture/agents/openai.yaml', name: '/improve-codebase-architecture (codex)' },
-      // Design-driven development (lowercase skill.md per upstream)
-      { src: 'skills/ddd/skill.md', dest: '~/.claude/skills/ddd/skill.md', name: '/ddd' },
-      { src: 'skills/ddd/agents/openai.yaml', dest: '~/.claude/skills/ddd/agents/openai.yaml', name: '/ddd (codex)' },
-      // Documentation audit
-      { src: 'skills/documentation-pass/SKILL.md', dest: '~/.claude/skills/documentation-pass/SKILL.md', name: '/documentation-pass' },
-      { src: 'skills/documentation-pass/agents/openai.yaml', dest: '~/.claude/skills/documentation-pass/agents/openai.yaml', name: '/documentation-pass (codex)' },
-      // E2E Playwright test
-      { src: 'skills/e2e-playwright-test/SKILL.md', dest: '~/.claude/skills/e2e-playwright-test/SKILL.md', name: '/e2e-playwright-test' },
-      { src: 'skills/e2e-playwright-test/agents/openai.yaml', dest: '~/.claude/skills/e2e-playwright-test/agents/openai.yaml', name: '/e2e-playwright-test (codex)' },
-      // Handoff document generator
-      { src: 'skills/handoff/SKILL.md', dest: '~/.claude/skills/handoff/SKILL.md', name: '/handoff' },
-      { src: 'skills/handoff/agents/openai.yaml', dest: '~/.claude/skills/handoff/agents/openai.yaml', name: '/handoff (codex)' },
-      // PR review gate
-      { src: 'skills/pr-review/SKILL.md', dest: '~/.claude/skills/pr-review/SKILL.md', name: '/pr-review' },
-      { src: 'skills/pr-review/agents/openai.yaml', dest: '~/.claude/skills/pr-review/agents/openai.yaml', name: '/pr-review (codex)' },
-      // Ubiquitous language glossary
-      { src: 'skills/ubiquitous-language/SKILL.md', dest: '~/.claude/skills/ubiquitous-language/SKILL.md', name: '/ubiquitous-language' },
-      { src: 'skills/ubiquitous-language/agents/openai.yaml', dest: '~/.claude/skills/ubiquitous-language/agents/openai.yaml', name: '/ubiquitous-language (codex)' },
+      { src: 'skills/git-commit', dest: '~/.claude/skills/git-commit', name: '/git-commit' },
+      { src: 'skills/pr', dest: '~/.claude/skills/pr', name: '/pr' },
+      { src: 'skills/review-code', dest: '~/.claude/skills/review-code', name: '/review-code' },
+      { src: 'skills/document', dest: '~/.claude/skills/document', name: '/document' },
+      { src: 'skills/ask', dest: '~/.claude/skills/ask', name: '/ask' },
+      { src: 'skills/grill-me', dest: '~/.claude/skills/grill-me', name: '/grill-me' },
+      { src: 'skills/write-a-prd', dest: '~/.claude/skills/write-a-prd', name: '/write-a-prd' },
+      { src: 'skills/prd-to-issues', dest: '~/.claude/skills/prd-to-issues', name: '/prd-to-issues' },
+      { src: 'skills/tdd', dest: '~/.claude/skills/tdd', name: '/tdd' },
+      { src: 'skills/evaluate', dest: '~/.claude/skills/evaluate', name: '/evaluate' },
+      { src: 'skills/improve-codebase-architecture', dest: '~/.claude/skills/improve-codebase-architecture', name: '/improve-codebase-architecture' },
+      { src: 'skills/ddd', dest: '~/.claude/skills/ddd', name: '/ddd' },
+      { src: 'skills/documentation-pass', dest: '~/.claude/skills/documentation-pass', name: '/documentation-pass' },
+      { src: 'skills/e2e-playwright-test', dest: '~/.claude/skills/e2e-playwright-test', name: '/e2e-playwright-test' },
+      { src: 'skills/handoff', dest: '~/.claude/skills/handoff', name: '/handoff' },
+      { src: 'skills/pr-review', dest: '~/.claude/skills/pr-review', name: '/pr-review' },
+      { src: 'skills/ubiquitous-language', dest: '~/.claude/skills/ubiquitous-language', name: '/ubiquitous-language' },
     ]
   },
   plugins: {

@@ -123,7 +123,11 @@ function fileExists(filePath) {
   }
 }
 
-// Returns true if destPath is already a symlink resolving to expectedTarget
+// Returns true if destPath is already a symlink resolving to expectedTarget.
+// linkFile always passes an absolute srcPath to symlinkSync, so readlink returns
+// an absolute path; path.resolve(dir, absolute) returns absolute unchanged.
+// The dir prefix is harmless and keeps the comparison correct if a future change
+// switches to relative symlinks.
 function isCorrectSymlink(destPath, expectedTarget) {
   try {
     const stat = fs.lstatSync(destPath);
@@ -306,4 +310,46 @@ export async function installFiles(files) {
   }
 
   return results;
+}
+
+// Mirror skill directories into ~/.codex/skills/<name> as symlinks.
+// No-ops silently if Codex isn't installed (~/.codex/skills missing).
+// Only acts on entries whose dest is under ~/.claude/skills/ — these are the
+// canonical skill directories. Always runs after installFiles when skills are
+// included; the codex side never goes stale relative to the claude side.
+export async function mirrorSkillsToCodex(files) {
+  const codexSkillsDir = path.join(process.env.HOME, '.codex', 'skills');
+  if (!fileExists(codexSkillsDir)) return { mirrored: 0, skipped: 0 };
+
+  const skillEntries = files.filter(f =>
+    f.mode === 'link' && f.dest.startsWith('~/.claude/skills/')
+  );
+  if (skillEntries.length === 0) return { mirrored: 0, skipped: 0 };
+
+  console.log('');
+  console.log(chalk.cyan('Mirroring skills to Codex...'));
+
+  const result = { mirrored: 0, skipped: 0 };
+  for (const file of skillEntries) {
+    const srcPath = path.join(ROOT_DIR, file.src);
+    const skillName = path.basename(file.dest);
+    const codexPath = path.join(codexSkillsDir, skillName);
+
+    if (isCorrectSymlink(codexPath, srcPath)) {
+      result.skipped++;
+      continue;
+    }
+    if (fileExists(codexPath)) fs.rmSync(codexPath, { recursive: true, force: true });
+    try {
+      fs.symlinkSync(srcPath, codexPath);
+      console.log(chalk.green(`  ✓ Linked ${skillName} → Codex`));
+      result.mirrored++;
+    } catch (error) {
+      console.log(chalk.red(`  ✗ Failed to mirror ${skillName}: ${error.message}`));
+    }
+  }
+  if (result.mirrored === 0 && result.skipped > 0) {
+    console.log(chalk.gray(`  ○ ${result.skipped} already current`));
+  }
+  return result;
 }

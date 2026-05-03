@@ -77,9 +77,9 @@ Each component:
 
 ## Source-of-truth model
 
-Devkit is the single source of truth for skills, subagents, and `CLAUDE.md`. The installer creates **symlinks** from `~/.claude/skills/<name>` and `~/.codex/skills/<name>` directly into `~/projects/devkit/skills/<name>`. Editing a skill via either path edits the same file in devkit; `git -C ~/projects/devkit status` shows pending changes.
+Devkit is the single source of truth for skills, subagents, and `CLAUDE.md`. The installer symlinks **whole skill directories** from `~/.claude/skills/<name>` and `~/.codex/skills/<name>` directly into `devkit/skills/<name>`. Files added to a skill directory in devkit appear in both tools immediately — no per-file registration.
 
-Settings files that take placeholder substitution (`mcp.json`) are still copied, not symlinked.
+Subagents and `CLAUDE.md` are symlinked per file. Settings files that take placeholder substitution (`mcp.json`, `settings.json`) are still copied.
 
 ### Layout
 
@@ -95,23 +95,28 @@ devkit/
     plugins/
   shell/
   src/                 # installer
+  scripts/smoke.sh     # filesystem-contract smoke test
 ```
 
 ### Editing skills
 
-Edit `~/.claude/skills/<name>/SKILL.md` (a symlink) or the devkit path — same file. When you're ready, commit from devkit. No reverse-sync step.
+Edit `~/.claude/skills/<name>/SKILL.md` (a symlink to devkit) or the devkit path — same file. Commit from devkit when ready. No reverse-sync step.
 
 ### Codex skill sharing
 
 Each skill directory contains:
-- `SKILL.md` — Claude Code skill definition
+- `SKILL.md` — Claude Code skill definition (frontmatter must be valid YAML; quote any value containing `: `)
 - `agents/openai.yaml` — Codex-compatible agent definition (`interface:` schema)
 
-`bootstrap.sh` symlinks every `devkit/skills/<name>` into `~/.codex/skills/<name>` when Codex is installed. Codex auto-discovers skills by walking that directory.
+`node install.js` mirrors every `devkit/skills/<name>` into `~/.codex/skills/<name>` automatically when Codex is installed. Codex auto-discovers skills by walking that directory. No separate Codex setup step needed.
 
 ### Path coupling caveat
 
-Symlinks bind to the devkit checkout path. Moving or renaming `~/projects/devkit` breaks the links — re-run `node install.js` and the codex symlink loop in `bootstrap.sh` to fix.
+Symlinks bind to the devkit checkout path. Moving or renaming `~/projects/devkit` breaks the links — re-run `node install.js` to fix (it rewrites both Claude and Codex symlinks in one pass).
+
+### Smoke test
+
+`./scripts/smoke.sh` exercises the filesystem contract end-to-end against a sandbox `HOME`: directory symlinks, Codex mirroring, copy-mode preservation, idempotency, and SKILL.md frontmatter validation.
 
 ---
 
@@ -187,10 +192,10 @@ Each agent is a specialized subagent with scoped tool access and turn limits.
 
 ### Adding New Skills
 1. Create a directory in `skills/<skill-name>/`
-2. Add a `SKILL.md` inside it (Claude Code reads frontmatter: `name`, `description`, optionally `disable-model-invocation`, `allowed-tools`)
-3. Add `agents/openai.yaml` for Codex compatibility (use `interface:` schema with `display_name`, `short_description`, `default_prompt`)
-4. Register both files in `src/packages.js` under the skills package
-5. Run `node install.js` — symlinks appear in `~/.claude/skills/` and `~/.codex/skills/` automatically
+2. Add `SKILL.md` (Claude Code reads frontmatter: `name`, `description`, optionally `disable-model-invocation`, `allowed-tools`). Quote any frontmatter value that contains `: ` — Codex strict-parses the YAML.
+3. Add `agents/openai.yaml` for Codex (use `interface:` schema with `display_name`, `short_description`, `default_prompt`)
+4. Register the skill directory in `src/packages.js` (one entry: `{ src: 'skills/<name>', dest: '~/.claude/skills/<name>', name: '/<name>' }`). Files added later inside the directory appear automatically.
+5. Run `node install.js` — symlinks appear in `~/.claude/skills/` and `~/.codex/skills/` in one pass.
 
 ### Adding Bootstrap Components
 Edit `bootstrap.sh` and add a new `install_*` function.
