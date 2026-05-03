@@ -535,11 +535,10 @@ install_claude_config() {
   print_step 15 15 "Installing Claude config..."
 
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  local src_dir="$SCRIPT_DIR/claude"
-  local dest_dir="$HOME/.claude"
+  local skills_dir="$SCRIPT_DIR/skills"
 
-  if [[ ! -d "$src_dir" ]]; then
-    print_warning "claude/ directory not found in repo, skipping"
+  if [[ ! -d "$skills_dir" ]]; then
+    print_warning "skills/ directory not found in repo, skipping"
     return 0
   fi
 
@@ -547,22 +546,21 @@ install_claude_config() {
     return 0
   fi
 
-  # Copy everything from claude/ to ~/.claude/
-  mkdir -p "$dest_dir"
-  cp -r "$src_dir"/* "$dest_dir"/
-
-  # Copy mcp.json to its special location
-  if [[ -f "$src_dir/mcp.json" ]]; then
-    cp "$src_dir/mcp.json" "$HOME/.mcp.json"
+  # Delegate to install.js — handles symlinks for skills/agents/CLAUDE.md
+  # and copies for settings.json, mcp.json, .zshrc.
+  if command -v node &> /dev/null; then
+    (cd "$SCRIPT_DIR" && [[ -d node_modules ]] || npm install --silent)
+    (cd "$SCRIPT_DIR" && node install.js)
+  else
+    print_warning "node not found — cannot run install.js. Install Node.js first."
+    return 1
   fi
 
-  print_success "Claude config installed to $dest_dir"
-
-  # Symlink skills to Codex
+  # Symlink skills directly into Codex (one hop, devkit-canonical)
   local codex_skills="$HOME/.codex/skills"
   if [[ -d "$HOME/.codex" ]]; then
     mkdir -p "$codex_skills"
-    for skill_dir in "$dest_dir"/skills/*/; do
+    for skill_dir in "$skills_dir"/*/; do
       local skill_name=$(basename "$skill_dir")
       ln -sfn "$skill_dir" "$codex_skills/$skill_name"
     done

@@ -69,19 +69,49 @@ Each component:
 |------|-------|
 | Settings | `settings.json`, `settings.local.json`, `mcp.json` |
 | Agents | git-master, code-reviewer, testing-wizard, documentation-scholar, api-planner, senior-interviewer |
-| Skills | /git-commit, /pr, /review-code, /document, /ask, /grill-me, /write-a-prd, /prd-to-issues, /tdd, /improve-codebase-architecture |
+| Skills | /git-commit, /pr, /review-code, /document, /ask, /grill-me, /write-a-prd, /prd-to-issues, /tdd, /improve-codebase-architecture, /evaluate, /ddd, /documentation-pass, /e2e-playwright-test, /handoff, /pr-review, /ubiquitous-language |
 
 **Note:** Model selection is intentionally excluded. Configure your preferred model fresh on each machine.
 
 ---
 
-## Codex Skill Sharing
+## Source-of-truth model
 
-Skills are shared between Claude Code and Codex CLI. Each skill directory contains:
+Devkit is the single source of truth for skills, subagents, and `CLAUDE.md`. The installer creates **symlinks** from `~/.claude/skills/<name>` and `~/.codex/skills/<name>` directly into `~/projects/devkit/skills/<name>`. Editing a skill via either path edits the same file in devkit; `git -C ~/projects/devkit status` shows pending changes.
+
+Settings files that take placeholder substitution (`mcp.json`) are still copied, not symlinked.
+
+### Layout
+
+```
+devkit/
+  skills/              # SHARED: SKILL.md (Claude) + agents/openai.yaml (Codex)
+  claude/              # Claude-specific
+    CLAUDE.md
+    settings.json
+    settings.local.json
+    mcp.json
+    agents/            # subagents
+    plugins/
+  shell/
+  src/                 # installer
+```
+
+### Editing skills
+
+Edit `~/.claude/skills/<name>/SKILL.md` (a symlink) or the devkit path — same file. When you're ready, commit from devkit. No reverse-sync step.
+
+### Codex skill sharing
+
+Each skill directory contains:
 - `SKILL.md` — Claude Code skill definition
-- `agents/openai.yaml` — Codex-compatible agent definition
+- `agents/openai.yaml` — Codex-compatible agent definition (`interface:` schema)
 
-The bootstrap script automatically symlinks skills to `~/.codex/skills/` when Codex is installed. Skills work identically in both tools.
+`bootstrap.sh` symlinks every `devkit/skills/<name>` into `~/.codex/skills/<name>` when Codex is installed. Codex auto-discovers skills by walking that directory.
+
+### Path coupling caveat
+
+Symlinks bind to the devkit checkout path. Moving or renaming `~/projects/devkit` breaks the links — re-run `node install.js` and the codex symlink loop in `bootstrap.sh` to fix.
 
 ---
 
@@ -137,6 +167,13 @@ Each agent is a specialized subagent with scoped tool access and turn limits.
 | /prd-to-issues* | Break a PRD into vertical-slice GitHub issues |
 | /tdd* | Test-driven development with red-green-refactor loop |
 | /improve-codebase-architecture* | Find and propose module-deepening refactors |
+| /evaluate | Post-implementation review — quizzes you on design decisions and tradeoffs |
+| /ddd | Design-Driven Development — visual checklist verification via Playwright MCP |
+| /documentation-pass | Holistic documentation audit (CLAUDE.md, docs/, README, ADRs) |
+| /e2e-playwright-test | LLM-piloted end-to-end smoke against a deployed app |
+| /handoff | Generate a handoff document to another team, repo, or agent |
+| /pr-review | Diligent end-of-cycle PR review (read-only, presents findings) |
+| /ubiquitous-language | Extract DDD-style domain glossary from the conversation |
 
 \* Adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT)
 
@@ -149,10 +186,11 @@ Each agent is a specialized subagent with scoped tool access and turn limits.
 2. Add the file to `src/packages.js` under the agents package
 
 ### Adding New Skills
-1. Create a directory in `claude/skills/<skill-name>/`
-2. Add a `SKILL.md` inside it
-3. Add `agents/openai.yaml` for Codex compatibility
-4. Add the files to `src/packages.js` under the skills package
+1. Create a directory in `skills/<skill-name>/`
+2. Add a `SKILL.md` inside it (Claude Code reads frontmatter: `name`, `description`, optionally `disable-model-invocation`, `allowed-tools`)
+3. Add `agents/openai.yaml` for Codex compatibility (use `interface:` schema with `display_name`, `short_description`, `default_prompt`)
+4. Register both files in `src/packages.js` under the skills package
+5. Run `node install.js` — symlinks appear in `~/.claude/skills/` and `~/.codex/skills/` automatically
 
 ### Adding Bootstrap Components
 Edit `bootstrap.sh` and add a new `install_*` function.
