@@ -1,4 +1,4 @@
 interface:
-  display_name: "Pull Request"
-  short_description: "Create a pull request"
-  default_prompt: "Create a pull request for the current branch."
+  display_name: "PR"
+  short_description: "Generate a clean PR description and create the PR."
+  default_prompt: "Use the /pr skill: Generate a clean PR description and create the PR."

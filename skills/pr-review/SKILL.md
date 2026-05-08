@@ -1,9 +1,14 @@
 ---
 name: pr-review
 description: Diligent end-of-cycle PR review gate. Read-only — presents findings to the user, never applies fixes. Use after /pr or whenever you want to vet a branch before merge.
+x-devkit-model-tier: highest
+model: best
+effort: xhigh
 ---
 
 # PR Review
+
+Model tier: Use the highest available model and reasoning tier for this skill.
 
 Diligent end-of-cycle review for any PR I authored under the standard workflow:
 

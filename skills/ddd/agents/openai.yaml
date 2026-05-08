@@ -1,4 +1,4 @@
 interface:
   display_name: "DDD"
-  short_description: "Visual checklist verification loop for UI work via Playwright MCP"
-  default_prompt: "Verify the UI work visually using the design-driven development checklist."
+  short_description: "Design-Driven Development — visual checklist verification loop for UI work."
+  default_prompt: "Use the /ddd skill: Design-Driven Development — visual checklist verification loop for UI work."

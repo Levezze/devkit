@@ -3,10 +3,15 @@
 #
 # Verifies the filesystem contract documented in README.md:
 # - Skill DIRECTORIES (not files) are symlinked into ~/.claude/skills/<name>
-# - Codex skills mirror to ~/.codex/skills/<name> when ~/.codex exists
+# - Skill DIRECTORIES are symlinked into ~/.codex/skills/<name> and ~/.cursor/skills/<name>
+# - Cursor subagents are symlinked into ~/.cursor/agents/<name>.md
+# - CLAUDE.md and AGENTS.md instruction files are symlinked
 # - Files added to a skill directory in devkit appear in ~/.claude (no re-register)
 # - mcp.json stays a real file (placeholder substitution preserved)
 # - Re-running the installer is a silent no-op for already-correct symlinks
+# - New skill directories are discovered automatically
+# - Codex openai.yaml metadata is generated from SKILL.md frontmatter
+# - x-devkit-model-tier: highest becomes a generated model-tier instruction
 # - All SKILL.md files have valid YAML frontmatter (Codex strict-parses)
 #
 # Run from devkit repo root: ./scripts/smoke.sh
@@ -23,10 +28,7 @@ pass() { echo "  PASS: $*"; }
 echo "Sandbox: $SANDBOX"
 echo
 
-# Pretend Codex is installed so we exercise the mirror path
-mkdir -p "$SANDBOX/.codex/skills"
-
-echo "[1/6] Validate SKILL.md frontmatter is parseable YAML"
+echo "[1/7] Validate SKILL.md frontmatter is parseable YAML"
 node -e "
 const fs = require('fs');
 const path = require('path');
@@ -51,20 +53,78 @@ process.exit(bad ? 1 : 0);
 pass "all SKILL.md frontmatter valid"
 
 echo
-echo "[2/6] Run installer against sandbox HOME"
+echo "[2/7] Verify skill discovery and generated Codex metadata"
+AUTO_ROOT="$SANDBOX/auto-root"
+mkdir -p "$AUTO_ROOT/skills/smoke-auto-skill"
+cat > "$AUTO_ROOT/skills/smoke-auto-skill/SKILL.md" <<'EOF'
+---
+name: smoke-auto-skill
+description: Smoke auto skill summary sentence. Extra trigger detail should not be part of the generated summary.
+x-devkit-model-tier: highest
+---
+
+# Smoke Auto Skill
+EOF
+node -e "
+const root = '$AUTO_ROOT';
+const repo = '$REPO_ROOT';
+import(repo + '/src/skill-sync.js').then(m => {
+  const names = m.discoverSkillNames(root);
+  if (!names.includes('smoke-auto-skill')) throw new Error('auto skill was not discovered');
+  const result = m.syncSkillMetadata(root);
+  if (!result.updated.includes('smoke-auto-skill')) throw new Error('openai.yaml was not generated');
+  const fs = require('fs');
+  const yaml = fs.readFileSync(root + '/skills/smoke-auto-skill/agents/openai.yaml', 'utf-8');
+  if (!yaml.includes('short_description: \"Smoke auto skill summary sentence.\"')) {
+    throw new Error('generated summary did not use first description sentence');
+  }
+  if (!yaml.includes('Use the highest available model and reasoning tier for this skill.')) {
+    throw new Error('generated metadata did not include highest-tier instruction');
+  }
+});
+" || fail "automatic skill metadata generation failed"
+node -e "
+import('$REPO_ROOT/src/packages.js').then(m => {
+  const files = m.getFilesForPackages(['skills'], ['codex']);
+  for (const skill of ['fix-pr-review', 'sync-skills']) {
+    if (!files.some(file => file.src === 'skills/' + skill)) {
+      throw new Error(skill + ' missing from discovered skill package');
+    }
+  }
+});
+" || fail "dynamic skill package discovery failed"
+node -e "
+import('$REPO_ROOT/src/skill-sync.js').then(m => {
+  for (const skill of ['pr-review', 'fix-pr-review']) {
+    const metadata = m.readSkillMetadata('$REPO_ROOT', skill);
+    if (metadata.modelTier !== 'highest') {
+      throw new Error(skill + ' should request highest model tier');
+    }
+    if (metadata.model !== 'best') {
+      throw new Error(skill + ' should use Claude Code model: best');
+    }
+    if (metadata.effort !== 'xhigh') {
+      throw new Error(skill + ' should use Claude Code effort: xhigh');
+    }
+  }
+});
+" || fail "highest-tier skill metadata missing"
+pass "new skills are discovered and Codex metadata is generated"
+
+echo
+echo "[3/7] Run installer against sandbox HOME"
 HOME="$SANDBOX" node -e "
 import('$REPO_ROOT/src/packages.js').then(async m => {
-  const { installFiles, mirrorSkillsToCodex } = await import('$REPO_ROOT/src/installer.js');
-  const files = m.getFilesForPackages(['settings','agents','skills','plugins','shell']);
+  const { installFiles } = await import('$REPO_ROOT/src/installer.js');
+  const files = m.getFilesForPackages(['settings','agents','skills','plugins','shell'], ['claude','codex','cursor']);
   await installFiles(files);
-  await mirrorSkillsToCodex(files);
 });
 " > /dev/null
 pass "installer ran"
 
 echo
-echo "[3/6] Verify whole-directory skill symlinks"
-for skill in tdd git-commit ddd handoff; do
+echo "[4/7] Verify whole-directory skill symlinks"
+for skill in tdd git-commit ddd handoff fix-pr-review sync-skills; do
   link="$SANDBOX/.claude/skills/$skill"
   [ -L "$link" ] || fail "$link is not a symlink (expected dir-symlink)"
   target="$(readlink "$link")"
@@ -74,30 +134,49 @@ done
 pass "skill directories symlinked correctly"
 
 echo
-echo "[4/6] Verify Codex mirror"
-for skill in tdd ddd handoff; do
+echo "[5/7] Verify Codex and Cursor symlinks"
+for skill in tdd ddd handoff fix-pr-review sync-skills; do
   link="$SANDBOX/.codex/skills/$skill"
   [ -L "$link" ] || fail "$link is not a symlink"
   target="$(readlink "$link")"
   expected="$REPO_ROOT/skills/$skill"
   [ "$target" = "$expected" ] || fail "Codex $link → $target (expected $expected)"
+
+  link="$SANDBOX/.cursor/skills/$skill"
+  [ -L "$link" ] || fail "$link is not a symlink"
+  target="$(readlink "$link")"
+  [ "$target" = "$expected" ] || fail "Cursor $link → $target (expected $expected)"
 done
-pass "Codex mirror created"
+
+for agent in git-master code-reviewer testing-wizard; do
+  link="$SANDBOX/.cursor/agents/$agent.md"
+  [ -L "$link" ] || fail "$link is not a symlink"
+  target="$(readlink "$link")"
+  expected="$REPO_ROOT/claude/agents/$agent.md"
+  [ "$target" = "$expected" ] || fail "Cursor $link → $target (expected $expected)"
+done
+
+for instructions in "$SANDBOX/CLAUDE.md" "$SANDBOX/.codex/AGENTS.md" "$SANDBOX/.cursor/AGENTS.md" "$SANDBOX/.cursor/CLAUDE.md"; do
+  [ -L "$instructions" ] || fail "$instructions is not a symlink"
+  target="$(readlink "$instructions")"
+  expected="$REPO_ROOT/claude/CLAUDE.md"
+  [ "$target" = "$expected" ] || fail "$instructions → $target (expected $expected)"
+done
+pass "Codex and Cursor symlinks created"
 
 echo
-echo "[5/6] Verify copy-mode files are real (mcp.json, settings.json)"
+echo "[6/7] Verify copy-mode files are real (mcp.json, settings.json)"
 [ -f "$SANDBOX/.mcp.json" ] && [ ! -L "$SANDBOX/.mcp.json" ] || fail ".mcp.json should be a real file"
 [ -f "$SANDBOX/.claude/settings.json" ] && [ ! -L "$SANDBOX/.claude/settings.json" ] || fail "settings.json should be a real file"
 pass "copy-mode files preserved"
 
 echo
-echo "[6/6] Idempotent re-run"
+echo "[7/7] Idempotent re-run"
 HOME="$SANDBOX" node -e "
 import('$REPO_ROOT/src/packages.js').then(async m => {
-  const { installFiles, mirrorSkillsToCodex } = await import('$REPO_ROOT/src/installer.js');
-  const files = m.getFilesForPackages(['skills','agents']);
+  const { installFiles } = await import('$REPO_ROOT/src/installer.js');
+  const files = m.getFilesForPackages(['skills','agents'], ['claude','codex','cursor']);
   await installFiles(files);
-  await mirrorSkillsToCodex(files);
 });
 " > "$SANDBOX/idempotent.log" 2>&1
 grep -q "Linked" "$SANDBOX/idempotent.log" && fail "second run created new symlinks (not idempotent)"

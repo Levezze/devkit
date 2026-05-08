@@ -1,4 +1,4 @@
 interface:
   display_name: "Documentation Pass"
-  short_description: "Holistic documentation audit against current codebase"
-  default_prompt: "Audit project documentation against the current codebase and propose updates."
+  short_description: "Holistic documentation audit."
+  default_prompt: "Use the /documentation-pass skill: Holistic documentation audit."

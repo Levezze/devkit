@@ -1,4 +1,4 @@
 interface:
   display_name: "Ask"
-  short_description: "Answer questions without writing code"
-  default_prompt: "Answer my question without modifying any files."
+  short_description: "Answer questions without writing code to the codebase."
+  default_prompt: "Use the /ask skill: Answer questions without writing code to the codebase."

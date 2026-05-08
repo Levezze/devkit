@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fix PR Review"
+  short_description: "Reconcile and apply fixes from one or more external PR reviews plus my own /pr-review output."
+  default_prompt: "Use the /fix-pr-review skill: Reconcile and apply fixes from one or more external PR reviews plus my own /pr-review output. Use the highest available model and reasoning tier for this skill."

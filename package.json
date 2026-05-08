@@ -1,7 +1,7 @@
 {
   "name": "devkit",
   "version": "1.0.0",
-  "description": "Dev environment bootstrap and Claude Code configuration toolkit",
+  "description": "Dev environment bootstrap and AI coding configuration toolkit",
   "main": "install.js",
   "bin": {
     "devkit": "./install.js"
@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node install.js"
   },
-  "keywords": ["claude", "claude-code", "codex", "settings", "installer", "devkit"],
+  "keywords": ["claude", "claude-code", "codex", "cursor", "settings", "installer", "devkit"],
   "author": "",
   "license": "MIT",
   "type": "module",

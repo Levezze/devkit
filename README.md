@@ -1,135 +1,189 @@
 # Devkit
 
-Portable development environment bootstrap and Claude Code + Codex configuration.
+[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](#license)
+[![AI tools](https://img.shields.io/badge/AI-Claude%20Code%20%7C%20Codex%20%7C%20Cursor-blue)](#ai-coding-config)
+[![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL2-lightgrey)](#platform-support)
+
+Devkit is a portable setup kit for a modern development machine and a shared AI coding workflow. It bootstraps common CLI tooling, then installs the same reusable instructions, skills, and subagents across Claude Code, Codex, and Cursor.
+
+It is designed around one simple idea: keep your AI coding habits in source control, then symlink them into each tool instead of copying slightly different versions around your machine.
+
+```mermaid
+flowchart LR
+  repo["devkit repo"]
+  skills["skills/*"]
+  agents["claude/agents/*"]
+  instructions["claude/CLAUDE.md"]
+
+  repo --> skills
+  repo --> agents
+  repo --> instructions
+
+  skills --> claudeSkills["~/.claude/skills"]
+  skills --> codexSkills["~/.codex/skills"]
+  skills --> cursorSkills["~/.cursor/skills"]
+
+  agents --> claudeAgents["~/.claude/agents"]
+  agents --> cursorAgents["~/.cursor/agents"]
+
+  instructions --> claudeMd["~/CLAUDE.md"]
+  instructions --> codexMd["~/.codex/AGENTS.md"]
+  instructions --> cursorMd["~/.cursor/AGENTS.md"]
+```
+
+This repository is not affiliated with Anthropic, OpenAI, Cursor, or Anysphere. It is a personal toolkit that may be useful as a starting point for your own setup.
+
+## What It Does
+
+Devkit has two layers:
+
+| Layer | Script | Purpose |
+|-------|--------|---------|
+| Machine bootstrap | `./bootstrap.sh` or `./setup.sh` | Installs Homebrew, shell tooling, Git, Node, Python, Docker, CLI utilities, and selected AI coding tools |
+| AI coding config | `node install.js` | Symlinks shared instructions, skills, and subagents into Claude Code, Codex, and/or Cursor |
+
+During setup, Devkit asks:
+
+- Whether you only want AI coding related tools and config
+- Which AI coding environments to install or configure: Claude Code, Codex, Cursor
+- Which config package mode to use: minimal, full, categories, or manual
+
+Model selection is intentionally excluded. Choose models inside each tool on each machine.
 
 ## Quick Start
 
-### Option 1: Complete Setup (New Machine)
+### Complete Setup
 
-Sets up your entire dev environment + Claude/Codex config:
+Use this on a new machine or a machine you want Devkit to manage end to end.
 
 ```bash
-git clone <your-repo-url> ~/devkit
+git clone https://github.com/Levezze/devkit.git ~/devkit
 cd ~/devkit
 ./setup.sh
 ```
 
-**Installs:** Homebrew, Zsh, Oh-My-Zsh, Powerlevel10k, Git, GitHub CLI, Node.js, pnpm, Python 3, Docker, CLI tools, Claude Code, Codex CLI, and all configuration.
+### Bootstrap Only
 
-### Option 2: Bootstrap Only
-
-Just dev tools, no Claude configuration:
+Use this when you want machine tooling plus the option to install AI coding config.
 
 ```bash
 ./bootstrap.sh
 ```
 
-### Option 3: Claude Config Only
+### AI Coding Config Only
 
-Machine already set up, just want Claude config:
+Use this when Node is already installed and you only want the Claude Code, Codex, and/or Cursor configuration.
 
 ```bash
 npm install
 node install.js
 ```
 
----
-
 ## What Gets Installed
 
-### Bootstrap (`bootstrap.sh`)
+### Machine Tools
 
 | Category | Tools |
 |----------|-------|
 | Shell | Zsh, Oh-My-Zsh, Powerlevel10k |
-| Package Manager | Homebrew |
-| Version Control | Git, GitHub CLI |
-| JavaScript | Node.js (via nvm), pnpm |
+| Package manager | Homebrew |
+| Version control | Git, GitHub CLI |
+| JavaScript | Node.js via nvm, pnpm |
 | Python | Python 3 |
 | Containers | Docker |
-| CLI Utilities | curl, wget, jq, tree, htop, ripgrep, fd, bat, eza |
-| AI | Claude Code, Codex CLI |
+| CLI utilities | curl, wget, jq, tree, htop, ripgrep, fd, bat, eza, carapace, atuin |
+| AI coding | Claude Code, Codex CLI, Cursor |
 
-Each component:
-- Checks if already installed
-- Prompts before installing
-- Supports "skip all" / "reinstall all" for batch operations
+Each component checks whether it is already installed and prompts before reinstalling.
 
-### Claude Config (`node install.js`)
+### AI Coding Config
 
-**Installation Modes:**
-- **Minimal** - Settings + permissions only
-- **Full** - Everything
-- **Categories** - Select packages
-- **Manual** - Pick individual items
+| Type | Installed to |
+|------|--------------|
+| Global instructions | `~/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.cursor/AGENTS.md`, `~/.cursor/CLAUDE.md` |
+| Claude settings | `~/.claude/settings.json`, `~/.claude/settings.local.json`, `~/.mcp.json` |
+| Skills | `~/.claude/skills/<name>`, `~/.codex/skills/<name>`, `~/.cursor/skills/<name>` |
+| Subagents | `~/.claude/agents/<name>.md`, `~/.cursor/agents/<name>.md` |
+| Optional shell config | `~/.zshrc` |
 
-**Included:**
+Settings files that need placeholder substitution are copied. Instructions, skills, and subagents are symlinked back to this repo.
 
-| Type | Items |
-|------|-------|
-| Settings | `settings.json`, `settings.local.json`, `mcp.json` |
-| Agents | git-master, code-reviewer, testing-wizard, documentation-scholar, api-planner, senior-interviewer |
-| Skills | /git-commit, /pr, /review-code, /document, /ask, /grill-me, /write-a-prd, /prd-to-issues, /tdd, /improve-codebase-architecture, /evaluate, /ddd, /documentation-pass, /e2e-playwright-test, /handoff, /pr-review, /ubiquitous-language |
+Skills can opt into a Devkit model-tier hint:
 
-**Note:** Model selection is intentionally excluded. Configure your preferred model fresh on each machine.
-
----
-
-## Source-of-truth model
-
-Devkit is the single source of truth for skills, subagents, and `CLAUDE.md`. The installer symlinks **whole skill directories** from `~/.claude/skills/<name>` and `~/.codex/skills/<name>` directly into `devkit/skills/<name>`. Files added to a skill directory in devkit appear in both tools immediately — no per-file registration.
-
-Subagents and `CLAUDE.md` are symlinked per file. Settings files that take placeholder substitution (`mcp.json`, `settings.json`) are still copied.
-
-### Layout
-
+```yaml
+x-devkit-model-tier: highest
 ```
+
+For generated Codex metadata, Devkit appends a highest-tier instruction to the skill prompt. For tools that load `SKILL.md` directly, put the same expectation in the skill body. Provider-native enforcement differs by tool, so this field is a portable policy hint rather than a universal hard guarantee.
+
+When `/sync-skills` touches model-tier behavior, it must first check current official provider documentation. It should never infer the strongest Claude, OpenAI/Codex, or Cursor model from stale model knowledge, and it should stop rather than downgrade or hard-code a model it cannot verify.
+
+For Claude Code, high-tier skills can also use native skill frontmatter:
+
+```yaml
+model: best
+effort: xhigh
+```
+
+As of the current Claude Code docs, `best` resolves to the most capable available model and is currently equivalent to `opus`; on Anthropic API, `opus` resolves to Opus 4.7 on Claude Code v2.1.111 or later. `xhigh` is the recommended default effort level for Opus 4.7. Use `max` only when you deliberately want unconstrained deeper reasoning for the current session.
+
+## Source Of Truth
+
+The repo layout is intentionally small:
+
+```text
 devkit/
-  skills/              # SHARED: SKILL.md (Claude) + agents/openai.yaml (Codex)
-  claude/              # Claude-specific
-    CLAUDE.md
+  skills/              # Shared SKILL.md files and Codex openai.yaml files
+  claude/
+    CLAUDE.md          # Shared global instruction source
     settings.json
     settings.local.json
     mcp.json
-    agents/            # subagents
+    agents/            # Claude/Cursor subagent definitions
     plugins/
   shell/
-  src/                 # installer
-  scripts/smoke.sh     # filesystem-contract smoke test
+  src/                 # Installer implementation
+  scripts/smoke.sh     # Filesystem contract smoke test
 ```
 
-### Editing skills
+Because skills are symlinked as whole directories, adding `examples.md`, `scripts/`, or other supporting files under `skills/<name>/` makes them immediately available to every selected tool after installation.
 
-Edit `~/.claude/skills/<name>/SKILL.md` (a symlink to devkit) or the devkit path — same file. Commit from devkit when ready. No reverse-sync step.
+If you move the checkout, rerun `node install.js` so the symlinks point at the new path.
 
-### Codex skill sharing
+## Included Agents
 
-Each skill directory contains:
-- `SKILL.md` — Claude Code skill definition (frontmatter must be valid YAML; quote any value containing `: `)
-- `agents/openai.yaml` — Codex-compatible agent definition (`interface:` schema)
+| Agent | Purpose |
+|-------|---------|
+| `git-master` | Commits, PRs, and version control workflows without AI watermarks |
+| `code-reviewer` | Read-only code quality review |
+| `testing-wizard` | Test execution and coverage analysis |
+| `documentation-scholar` | Technical documentation writing |
+| `api-planner` | API research and integration planning |
+| `senior-interviewer` | Mock technical interviews |
 
-`node install.js` mirrors every `devkit/skills/<name>` into `~/.codex/skills/<name>` automatically when Codex is installed. Codex auto-discovers skills by walking that directory. No separate Codex setup step needed.
+## Included Skills
 
-### Path coupling caveat
-
-Symlinks bind to the devkit checkout path. Moving or renaming `~/projects/devkit` breaks the links — re-run `node install.js` to fix (it rewrites both Claude and Codex symlinks in one pass).
-
-### Smoke test
-
-`./scripts/smoke.sh` exercises the filesystem contract end-to-end against a sandbox `HOME`: directory symlinks, Codex mirroring, copy-mode preservation, idempotency, and SKILL.md frontmatter validation.
-
----
-
-## MCP Servers
-
-After installation, see `CLAUDE_INSTRUCTIONS.md` for help setting up additional MCP servers:
-- context7 (documentation lookup)
-- exa (web search)
-- puppeteer (browser automation)
-- sequential-thinking
-- And more
-
----
+| Skill | What it does |
+|-------|--------------|
+| `/ask` | Answer questions without writing code |
+| `/ddd` | Design-Driven Development visual verification for UI work |
+| `/document` | Generate technical documentation via `documentation-scholar` |
+| `/documentation-pass` | Audit and update docs after meaningful codebase change |
+| `/e2e-playwright-test` | Run an LLM-guided Playwright smoke test |
+| `/evaluate` | Review an implementation and quiz the tradeoffs |
+| `/fix-pr-review` | Reconcile external PR reviews with your own review and apply warranted fixes |
+| `/git-commit` | Stage and commit changes with conventional commit messages |
+| `/grill-me` | Stress-test a plan through a structured interview |
+| `/handoff` | Write a handoff document for another team, repo, or agent |
+| `/improve-codebase-architecture` | Find module-deepening architecture improvements |
+| `/pr` | Create a clean pull request description and PR |
+| `/pr-review` | Run a diligent end-of-cycle PR review |
+| `/prd-to-issues` | Break a PRD into vertical-slice GitHub issues |
+| `/review-code` | Review code quality and testing risk |
+| `/sync-skills` | Audit and repair Claude Code, Codex, and Cursor skill synchronization |
+| `/tdd` | Build with a red-green-refactor loop |
+| `/ubiquitous-language` | Extract a DDD-style domain glossary |
+| `/write-a-prd` | Interview, explore, and write a product requirements document |
 
 ## Updating
 
@@ -137,87 +191,64 @@ After installation, see `CLAUDE_INSTRUCTIONS.md` for help setting up additional 
 cd ~/devkit
 git pull
 ./setup.sh          # Full update
-# OR
-node install.js     # Just Claude config
+# or
+node install.js     # AI coding config only
 ```
 
-Choose "Overwrite all remaining" when prompted to update all files.
+Choose "Overwrite all remaining" if you want the installer to refresh every managed file.
 
----
+## Testing The Installer
 
-## Agents
+The smoke test runs the installer against a temporary `HOME` and verifies the filesystem contract: symlinked skill directories, Cursor agents, copied settings, idempotency, and valid skill frontmatter.
 
-Each agent is a specialized subagent with scoped tool access and turn limits.
+```bash
+./scripts/smoke.sh
+```
 
-| Agent | Purpose | Tools | Max Turns |
-|-------|---------|-------|-----------|
-| git-master | Commits, PRs, version control. No AI watermarks. | All (needs Bash + Write for git) | 15 |
-| code-reviewer | Read-only code quality review | Read, Glob, Grep | 15 |
-| testing-wizard | Test execution and coverage analysis | Read, Glob, Grep, Bash | 20 |
-| documentation-scholar | Technical documentation writing | All (needs Write for docs) | 20 |
-| api-planner | API research and integration planning | Read, Glob, Grep, WebFetch, WebSearch | 15 |
-| senior-interviewer | Mock technical interviews | Read, Write, Glob, Grep | 50 |
+## Customizing
 
-## Skills
+### Add A Skill
 
-| Skill | What it does |
-|-------|-------------|
-| /git-commit | Stage and commit changes with conventional commit format |
-| /pr | Create a PR with clean description |
-| /review-code | Two-step review: code quality first, then testing if needed |
-| /document | Generate documentation via documentation-scholar |
-| /ask | Research questions without writing code |
-| /grill-me* | Stress-test a plan through relentless interview |
-| /write-a-prd* | Create a PRD through interview, codebase exploration, and module design |
-| /prd-to-issues* | Break a PRD into vertical-slice GitHub issues |
-| /tdd* | Test-driven development with red-green-refactor loop |
-| /improve-codebase-architecture* | Find and propose module-deepening refactors |
-| /evaluate | Post-implementation review — quizzes you on design decisions and tradeoffs |
-| /ddd | Design-Driven Development — visual checklist verification via Playwright MCP |
-| /documentation-pass | Holistic documentation audit (CLAUDE.md, docs/, README, ADRs) |
-| /e2e-playwright-test | LLM-piloted end-to-end smoke against a deployed app |
-| /handoff | Generate a handoff document to another team, repo, or agent |
-| /pr-review | Diligent end-of-cycle PR review (read-only, presents findings) |
-| /ubiquitous-language | Extract DDD-style domain glossary from the conversation |
+1. Create `skills/<skill-name>/SKILL.md`.
+2. Write a clear first sentence in the frontmatter `description`; that sentence becomes the generated Codex summary.
+3. Add `x-devkit-model-tier: highest` only for skills that should request the strongest available model/reasoning tier.
+4. Run `/sync-skills` or `node scripts/sync-skills.js --apply`.
+5. Run `node install.js` if you need to reinstall the managed symlinks on this machine.
 
-\* Adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT)
+`node install.js` discovers `skills/*/SKILL.md` automatically and regenerates `agents/openai.yaml` from the frontmatter description when needed.
 
----
+### Add An Agent
 
-## Customization
+1. Create `claude/agents/<agent-name>.md`.
+2. Add Claude and Cursor targets in `src/packages.js`.
+3. Run `node install.js`.
 
-### Adding New Agents
-1. Create a markdown file in `claude/agents/`
-2. Add the file to `src/packages.js` under the agents package
+### Add A Bootstrap Component
 
-### Adding New Skills
-1. Create a directory in `skills/<skill-name>/`
-2. Add `SKILL.md` (Claude Code reads frontmatter: `name`, `description`, optionally `disable-model-invocation`, `allowed-tools`). Quote any frontmatter value that contains `: ` — Codex strict-parses the YAML.
-3. Add `agents/openai.yaml` for Codex (use `interface:` schema with `display_name`, `short_description`, `default_prompt`)
-4. Register the skill directory in `src/packages.js` (one entry: `{ src: 'skills/<name>', dest: '~/.claude/skills/<name>', name: '/<name>' }`). Files added later inside the directory appear automatically.
-5. Run `node install.js` — symlinks appear in `~/.claude/skills/` and `~/.codex/skills/` in one pass.
+Add a new `install_*` function in `bootstrap.sh`, then call it from `main`.
 
-### Adding Bootstrap Components
-Edit `bootstrap.sh` and add a new `install_*` function.
+## MCP Servers
 
----
+After installation, see `CLAUDE_INSTRUCTIONS.md` for optional MCP setup notes, including context7, exa, puppeteer, and sequential-thinking.
 
 ## Platform Support
 
-- **macOS** (Intel + Apple Silicon)
-- **Linux**
-- **WSL2**
+- macOS, Intel and Apple Silicon
+- Linux
+- WSL2
 
----
+Cursor auto-install is currently macOS-only through Homebrew Cask. On Linux or WSL2, install Cursor manually and then run `node install.js`.
 
 ## Credits
 
-The following skills are adapted from [Matt Pocock's skills collection](https://github.com/mattpocock/skills) (MIT):
-- /grill-me
-- /write-a-prd
-- /prd-to-issues
-- /tdd
-- /improve-codebase-architecture
+Some skills were adapted from [Matt Pocock's skills collection](https://github.com/mattpocock/skills) under the MIT license, including:
+
+- `/grill-me`
+- `/write-a-prd`
+- `/prd-to-issues`
+- `/ubiquitous-language`
+- `/improve-codebase-architecture`
+- `/tdd`
 
 ## License
 

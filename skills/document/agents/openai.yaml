@@ -1,4 +1,4 @@
 interface:
   display_name: "Document"
-  short_description: "Create technical documentation"
-  default_prompt: "Create comprehensive technical documentation for this project."
+  short_description: "Create technical documentation using the documentation-scholar subagent."
+  default_prompt: "Use the /document skill: Create technical documentation using the documentation-scholar subagent."

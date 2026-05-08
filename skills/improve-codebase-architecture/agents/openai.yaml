@@ -1,4 +1,4 @@
 interface:
-  display_name: "Improve Architecture"
-  short_description: "Find and propose architectural improvements"
-  default_prompt: "Explore this codebase for architectural improvement opportunities focusing on deep modules and testability."
+  display_name: "Improve Codebase Architecture"
+  short_description: "Explore a codebase to find opportunities for architectural improvement, focusing on making the codebase more testable by deepening shallow modules."
+  default_prompt: "Use the /improve-codebase-architecture skill: Explore a codebase to find opportunities for architectural improvement, focusing on making the codebase more testable by deepening shallow modules."

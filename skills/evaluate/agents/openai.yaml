@@ -1,4 +1,4 @@
 interface:
   display_name: "Evaluate"
-  short_description: "Post-implementation review with architecture summary and quiz"
-  default_prompt: "Evaluate what was just implemented — summarize the changes and quiz me on the design decisions."
+  short_description: "Post-implementation review — summarizes what was built, then quizzes you on design decisions and tradeoffs."
+  default_prompt: "Use the /evaluate skill: Post-implementation review — summarizes what was built, then quizzes you on design decisions and tradeoffs."
