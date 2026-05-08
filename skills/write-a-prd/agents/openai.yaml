@@ -1,4 +1,4 @@
 interface:
-  display_name: "Write a PRD"
-  short_description: "Create a product requirements document as a GitHub issue"
-  default_prompt: "Help me write a PRD for a new feature through interview and codebase exploration."
+  display_name: "Write A PRD"
+  short_description: "Create a PRD through user interview, codebase exploration, and module design, then submit as a GitHub issue."
+  default_prompt: "Use the /write-a-prd skill: Create a PRD through user interview, codebase exploration, and module design, then submit as a GitHub issue."

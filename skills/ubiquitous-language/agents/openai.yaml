@@ -1,4 +1,4 @@
 interface:
   display_name: "Ubiquitous Language"
-  short_description: "Extract a DDD-style domain glossary from the conversation"
-  default_prompt: "Extract a ubiquitous language glossary from our conversation and save to UBIQUITOUS_LANGUAGE.md."
+  short_description: "Extract a DDD-style ubiquitous language glossary from the current conversation, flagging ambiguities and proposing canonical terms."
+  default_prompt: "Use the /ubiquitous-language skill: Extract a DDD-style ubiquitous language glossary from the current conversation, flagging ambiguities and proposing canonical terms."

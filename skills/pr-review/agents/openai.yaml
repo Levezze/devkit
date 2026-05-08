@@ -1,4 +1,4 @@
 interface:
   display_name: "PR Review"
-  short_description: "Diligent end-of-cycle PR review (read-only, presents findings)"
-  default_prompt: "Review the current PR. Present findings without applying fixes."
+  short_description: "Diligent end-of-cycle PR review gate."
+  default_prompt: "Use the /pr-review skill: Diligent end-of-cycle PR review gate. Use the highest available model and reasoning tier for this skill."

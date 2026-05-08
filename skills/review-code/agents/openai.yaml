@@ -1,4 +1,4 @@
 interface:
   display_name: "Review Code"
-  short_description: "Code quality review with testing assessment"
-  default_prompt: "Review all current code changes for quality, best practices, and test coverage."
+  short_description: "Code quality review with optional testing assessment."
+  default_prompt: "Use the /review-code skill: Code quality review with optional testing assessment."

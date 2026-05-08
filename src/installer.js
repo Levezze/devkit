@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
+import { syncSkillMetadata } from './skill-sync.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -261,6 +262,19 @@ export async function installFiles(files) {
   // Reset overwrite strategy for each installation
   overwriteStrategy = null;
 
+  if (files.some(file => file.src.startsWith('skills/'))) {
+    const syncResult = syncSkillMetadata(ROOT_DIR, { apply: true });
+    if (syncResult.updated.length > 0) {
+      console.log(chalk.gray(`  Synced Codex metadata for ${syncResult.updated.length} skill(s)`));
+    }
+    for (const error of syncResult.errors) {
+      console.log(chalk.red(`  ✗ Failed to sync ${error.skill} metadata: ${error.message}`));
+    }
+    if (syncResult.errors.length > 0) {
+      throw new Error('Skill metadata sync failed. Fix the errors above before installing.');
+    }
+  }
+
   // Resolve API keys before copying
   const envVars = await resolveApiKeys(files);
 
@@ -306,50 +320,8 @@ export async function installFiles(files) {
   console.log('');
 
   if (results.copied > 0 || results.skipped > 0) {
-    console.log(chalk.green("Done! Run 'claude' to start using your settings."));
+    console.log(chalk.green('Done! Restart your AI coding tools to pick up the settings.'));
   }
 
   return results;
-}
-
-// Mirror skill directories into ~/.codex/skills/<name> as symlinks.
-// No-ops silently if Codex isn't installed (~/.codex/skills missing).
-// Only acts on entries whose dest is under ~/.claude/skills/ — these are the
-// canonical skill directories. Always runs after installFiles when skills are
-// included; the codex side never goes stale relative to the claude side.
-export async function mirrorSkillsToCodex(files) {
-  const codexSkillsDir = path.join(process.env.HOME, '.codex', 'skills');
-  if (!fileExists(codexSkillsDir)) return { mirrored: 0, skipped: 0 };
-
-  const skillEntries = files.filter(f =>
-    f.mode === 'link' && f.dest.startsWith('~/.claude/skills/')
-  );
-  if (skillEntries.length === 0) return { mirrored: 0, skipped: 0 };
-
-  console.log('');
-  console.log(chalk.cyan('Mirroring skills to Codex...'));
-
-  const result = { mirrored: 0, skipped: 0 };
-  for (const file of skillEntries) {
-    const srcPath = path.join(ROOT_DIR, file.src);
-    const skillName = path.basename(file.dest);
-    const codexPath = path.join(codexSkillsDir, skillName);
-
-    if (isCorrectSymlink(codexPath, srcPath)) {
-      result.skipped++;
-      continue;
-    }
-    if (fileExists(codexPath)) fs.rmSync(codexPath, { recursive: true, force: true });
-    try {
-      fs.symlinkSync(srcPath, codexPath);
-      console.log(chalk.green(`  ✓ Linked ${skillName} → Codex`));
-      result.mirrored++;
-    } catch (error) {
-      console.log(chalk.red(`  ✗ Failed to mirror ${skillName}: ${error.message}`));
-    }
-  }
-  if (result.mirrored === 0 && result.skipped > 0) {
-    console.log(chalk.gray(`  ○ ${result.skipped} already current`));
-  }
-  return result;
 }

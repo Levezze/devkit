@@ -1,4 +1,4 @@
 interface:
   display_name: "Git Commit"
-  short_description: "Commit with conventional format, no watermarks"
-  default_prompt: "Add and commit the current changes with a conventional commit message."
+  short_description: "Git add and commit with conventional commit format."
+  default_prompt: "Use the /git-commit skill: Git add and commit with conventional commit format."

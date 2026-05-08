@@ -1,7 +1,7 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
-import { packages, modes, getFilesForPackages, getAllItems } from './packages.js';
-import { installFiles, mirrorSkillsToCodex } from './installer.js';
+import { aiEnvironments, packages, modes, getFilesForPackages, getAllItems } from './packages.js';
+import { installFiles } from './installer.js';
 
 // Print header
 function printHeader() {
@@ -10,6 +10,65 @@ function printHeader() {
   console.log(chalk.cyan('  │') + chalk.bold('   Devkit Installer                   ') + chalk.cyan('│'));
   console.log(chalk.cyan('  ╰──────────────────────────────────────╯'));
   console.log('');
+}
+
+function parseEnvironmentList(value) {
+  if (!value) return null;
+  const valid = new Set(Object.keys(aiEnvironments));
+  const selected = value
+    .split(',')
+    .map(item => item.trim())
+    .filter(item => valid.has(item));
+  return selected.length > 0 ? selected : null;
+}
+
+async function selectScope() {
+  if (process.env.DEVKIT_AI_ONLY === '1') return true;
+  if (process.env.DEVKIT_AI_ONLY === '0') return false;
+
+  const { aiOnly } = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'aiOnly',
+      message: 'Only install AI coding related config? (skips shell config)',
+      default: true
+    }
+  ]);
+  return aiOnly;
+}
+
+async function selectEnvironments() {
+  const envFromShell = parseEnvironmentList(process.env.DEVKIT_AI_ENVS);
+  if (envFromShell) return envFromShell;
+
+  const { selectedEnvironments } = await inquirer.prompt([
+    {
+      type: 'checkbox',
+      name: 'selectedEnvironments',
+      message: 'Select AI coding environments to configure:',
+      choices: Object.entries(aiEnvironments).map(([key, env]) => ({
+        name: `${env.name} ${chalk.gray(`(${env.description})`)}`,
+        value: key,
+        checked: true
+      })),
+      validate: selected => selected.length > 0 || 'Select at least one environment'
+    }
+  ]);
+  return selectedEnvironments;
+}
+
+function filterPackagesForScope(packageNames, aiOnly) {
+  if (!aiOnly) return packageNames;
+  return packageNames.filter(packageName => packageName !== 'shell');
+}
+
+function packagesForChoices(selectedEnvironments, aiOnly) {
+  return Object.entries(packages)
+    .map(([key, pkg]) => {
+      const files = getFilesForPackages([key], selectedEnvironments);
+      return [key, pkg, files.length];
+    })
+    .filter(([key, _pkg, fileCount]) => fileCount > 0 && (!aiOnly || key !== 'shell'));
 }
 
 // Select installation mode
@@ -21,7 +80,7 @@ async function selectMode() {
       message: 'Select installation mode:',
       choices: [
         {
-          name: `${chalk.bold('Minimal')} ${chalk.gray('(settings + permissions only)')}`,
+          name: `${chalk.bold('Minimal')} ${chalk.gray('(core instructions + settings only)')}`,
           value: 'minimal'
         },
         {
@@ -43,14 +102,14 @@ async function selectMode() {
 }
 
 // Select packages (categories mode)
-async function selectPackages() {
+async function selectPackages(selectedEnvironments, aiOnly) {
   const { selectedPackages } = await inquirer.prompt([
     {
       type: 'checkbox',
       name: 'selectedPackages',
       message: 'Select packages to install:',
-      choices: Object.entries(packages).map(([key, pkg]) => ({
-        name: `${pkg.name} ${chalk.gray(`(${pkg.files.length} items)`)}`,
+      choices: packagesForChoices(selectedEnvironments, aiOnly).map(([key, pkg, fileCount]) => ({
+        name: `${pkg.name} ${chalk.gray(`(${fileCount} items)`)}`,
         value: key,
         checked: key === 'settings' // Settings checked by default
       }))
@@ -60,8 +119,9 @@ async function selectPackages() {
 }
 
 // Select individual items (manual mode)
-async function selectItems() {
-  const allItems = getAllItems();
+async function selectItems(selectedEnvironments, aiOnly) {
+  const allItems = getAllItems(selectedEnvironments)
+    .filter(item => !aiOnly || item.package !== 'shell');
 
   // Group items by package for better UX
   const choices = [];
@@ -113,30 +173,38 @@ export async function runCLI() {
   printHeader();
 
   try {
+    const aiOnly = await selectScope();
+    const selectedEnvironments = await selectEnvironments();
     const mode = await selectMode();
     let filesToInstall = [];
 
     switch (mode) {
       case 'minimal':
-        filesToInstall = getFilesForPackages(modes.minimal.packages);
+        filesToInstall = getFilesForPackages(modes.minimal.packages, selectedEnvironments);
         break;
 
       case 'full':
-        filesToInstall = getFilesForPackages(modes.full.packages);
+        filesToInstall = getFilesForPackages(
+          filterPackagesForScope(modes.full.packages, aiOnly),
+          selectedEnvironments
+        );
         break;
 
       case 'categories': {
-        const selectedPackages = await selectPackages();
+        const selectedPackages = await selectPackages(selectedEnvironments, aiOnly);
         if (selectedPackages.length === 0) {
           console.log(chalk.yellow('\nNo packages selected. Exiting.'));
           return;
         }
-        filesToInstall = getFilesForPackages(selectedPackages);
+        filesToInstall = getFilesForPackages(
+          filterPackagesForScope(selectedPackages, aiOnly),
+          selectedEnvironments
+        );
         break;
       }
 
       case 'manual': {
-        const selectedItems = await selectItems();
+        const selectedItems = await selectItems(selectedEnvironments, aiOnly);
         if (selectedItems.length === 0) {
           console.log(chalk.yellow('\nNo items selected. Exiting.'));
           return;
@@ -148,6 +216,7 @@ export async function runCLI() {
 
     // Show summary
     console.log('');
+    console.log(chalk.cyan(`Environments: ${selectedEnvironments.map(env => aiEnvironments[env].name).join(', ')}`));
     console.log(chalk.cyan(`Files to install: ${filesToInstall.length}`));
 
     // Confirm
@@ -159,9 +228,6 @@ export async function runCLI() {
 
     // Install
     await installFiles(filesToInstall);
-
-    // Mirror skill directories into Codex if installed
-    await mirrorSkillsToCodex(filesToInstall);
 
   } catch (error) {
     if (error.name === 'ExitPromptError') {

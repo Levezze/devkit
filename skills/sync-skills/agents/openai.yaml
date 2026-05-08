@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sync Skills"
+  short_description: "Synchronize devkit skills across Claude Code, Codex, and Cursor, repairing small symlink or Codex metadata drift and reporting larger gaps for user decisions."
+  default_prompt: "Use the /sync-skills skill: Synchronize devkit skills across Claude Code, Codex, and Cursor, repairing small symlink or Codex metadata drift and reporting larger gaps for user decisions."

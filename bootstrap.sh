@@ -54,6 +54,10 @@ print_info() {
 # Overwrite handling
 # ============================================================================
 OVERWRITE_STRATEGY=""  # "", "all", "none"
+AI_ONLY=""
+INSTALL_CLAUDE=1
+INSTALL_CODEX=1
+INSTALL_CURSOR=1
 
 # Returns 0 if should install, 1 if should skip
 prompt_existing() {
@@ -103,6 +107,71 @@ confirm() {
   fi
 
   [[ "$response" =~ ^[Yy] ]]
+}
+
+select_ai_scope() {
+  if [[ "$DEVKIT_AI_ONLY" == "1" ]]; then
+    AI_ONLY=1
+    return 0
+  fi
+  if [[ "$DEVKIT_AI_ONLY" == "0" ]]; then
+    AI_ONLY=0
+    return 0
+  fi
+
+  if confirm "Only install AI coding related tools and config?" "N"; then
+    AI_ONLY=1
+  else
+    AI_ONLY=0
+  fi
+}
+
+select_ai_environments() {
+  INSTALL_CLAUDE=0
+  INSTALL_CODEX=0
+  INSTALL_CURSOR=0
+
+  local selected="${DEVKIT_AI_ENVS:-}"
+  if [[ -z "$selected" ]]; then
+    echo ""
+    echo "  Select AI coding environments to install/configure:"
+    echo "    1) Claude Code"
+    echo "    2) Codex"
+    echo "    3) Cursor"
+    echo ""
+    read -p "  Choices [1,2,3]: " selected
+    selected=${selected:-1,2,3}
+  fi
+
+  selected="${selected//,/ }"
+  for choice in $selected; do
+    case "$choice" in
+      1|claude|Claude|claude-code|Claude-Code) INSTALL_CLAUDE=1 ;;
+      2|codex|Codex) INSTALL_CODEX=1 ;;
+      3|cursor|Cursor) INSTALL_CURSOR=1 ;;
+      all|All|ALL)
+        INSTALL_CLAUDE=1
+        INSTALL_CODEX=1
+        INSTALL_CURSOR=1
+        ;;
+    esac
+  done
+
+  if [[ "$INSTALL_CLAUDE" != "1" && "$INSTALL_CODEX" != "1" && "$INSTALL_CURSOR" != "1" ]]; then
+    print_warning "No AI coding environments selected; defaulting to all."
+    INSTALL_CLAUDE=1
+    INSTALL_CODEX=1
+    INSTALL_CURSOR=1
+  fi
+}
+
+selected_ai_envs_csv() {
+  local envs=()
+  [[ "$INSTALL_CLAUDE" == "1" ]] && envs+=("claude")
+  [[ "$INSTALL_CODEX" == "1" ]] && envs+=("codex")
+  [[ "$INSTALL_CURSOR" == "1" ]] && envs+=("cursor")
+  local IFS=,
+  echo "${envs[*]}"
 }
 
 # ============================================================================
@@ -492,7 +561,12 @@ install_cli_tools() {
 }
 
 install_claude_code() {
-  print_step 13 15 "Checking Claude Code..."
+  print_step 13 16 "Checking Claude Code..."
+
+  if [[ "$INSTALL_CLAUDE" != "1" ]]; then
+    print_info "Claude Code not selected, skipping"
+    return 0
+  fi
 
   if command -v claude &> /dev/null; then
     local version=$(claude --version 2>/dev/null | head -n1 || echo "installed")
@@ -512,7 +586,12 @@ install_claude_code() {
 }
 
 install_codex() {
-  print_step 14 15 "Checking Codex CLI..."
+  print_step 14 16 "Checking Codex CLI..."
+
+  if [[ "$INSTALL_CODEX" != "1" ]]; then
+    print_info "Codex not selected, skipping"
+    return 0
+  fi
 
   if command -v codex &> /dev/null; then
     local version=$(codex --version 2>/dev/null | head -n1 || echo "installed")
@@ -531,8 +610,41 @@ install_codex() {
   print_success "Codex CLI installed"
 }
 
-install_claude_config() {
-  print_step 15 15 "Installing Claude config..."
+install_cursor() {
+  print_step 15 16 "Checking Cursor..."
+
+  if [[ "$INSTALL_CURSOR" != "1" ]]; then
+    print_info "Cursor not selected, skipping"
+    return 0
+  fi
+
+  if command -v cursor &> /dev/null || [[ -d "/Applications/Cursor.app" ]]; then
+    local version="installed"
+    if command -v cursor &> /dev/null; then
+      version=$(cursor --version 2>/dev/null | head -n1 || echo "installed")
+    fi
+    if ! prompt_existing "Cursor" "$version"; then
+      return 0
+    fi
+  fi
+
+  if ! confirm "Install Cursor?"; then
+    return 0
+  fi
+
+  if [[ "$OS" != "macos" ]]; then
+    print_warning "Automatic Cursor install is only configured for macOS. Install Cursor manually, then re-run node install.js."
+    return 0
+  fi
+
+  print_info "Installing Cursor..."
+  brew install --cask cursor
+
+  print_success "Cursor installed"
+}
+
+install_ai_config() {
+  print_step 16 16 "Installing AI coding config..."
 
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -541,13 +653,12 @@ install_claude_config() {
     return 0
   fi
 
-  if ! confirm "Install Claude config (agents, skills, settings)?"; then
+  if ! confirm "Install AI coding config (instructions, agents, skills, settings)?"; then
     return 0
   fi
 
   # Delegate to install.js — handles symlinks for skills/agents/CLAUDE.md,
-  # copies for settings.json/mcp.json/.zshrc, and mirrors skills into
-  # ~/.codex/skills/ if Codex is installed.
+  # AGENTS.md, and copied settings files for the selected environments.
   if ! command -v node &> /dev/null; then
     print_warning "node not found — cannot run install.js. Install Node.js first."
     return 1
@@ -556,7 +667,7 @@ install_claude_config() {
   if [[ ! -d "$SCRIPT_DIR/node_modules" ]]; then
     (cd "$SCRIPT_DIR" && npm install --silent)
   fi
-  (cd "$SCRIPT_DIR" && node install.js)
+  (cd "$SCRIPT_DIR" && DEVKIT_AI_ONLY="${AI_ONLY:-1}" DEVKIT_AI_ENVS="$(selected_ai_envs_csv)" node install.js)
 }
 
 # ============================================================================
@@ -570,6 +681,33 @@ main() {
   if ! command -v curl &> /dev/null; then
     print_error "curl is required but not installed"
     exit 1
+  fi
+
+  select_ai_scope
+  select_ai_environments
+
+  if [[ "$AI_ONLY" == "1" ]]; then
+    if [[ "$INSTALL_CLAUDE" == "1" || ( "$INSTALL_CURSOR" == "1" && "$OS" == "macos" ) ]]; then
+      install_homebrew
+
+      if [[ -f "$BREW_PREFIX/bin/brew" ]]; then
+        eval "$($BREW_PREFIX/bin/brew shellenv)"
+      fi
+    fi
+
+    install_node
+    install_claude_code
+    install_codex
+    install_cursor
+    install_ai_config
+
+    echo ""
+    echo -e "${CYAN}═══════════════════════════════════════════${NC}"
+    echo -e "${GREEN}${BOLD}AI coding setup complete!${NC}"
+    echo ""
+    echo "You may need to restart your terminal for all changes to take effect."
+    echo ""
+    return 0
   fi
 
   # Run all installers
@@ -593,27 +731,14 @@ main() {
   install_cli_tools
   install_claude_code
   install_codex
-  install_claude_config
+  install_cursor
+  install_ai_config
 
   # Final summary
   echo ""
   echo -e "${CYAN}═══════════════════════════════════════════${NC}"
   echo -e "${GREEN}${BOLD}Bootstrap complete!${NC}"
   echo ""
-
-  # Check if running standalone (not from setup.sh)
-  if [[ -z "$RUNNING_FROM_SETUP" ]]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    if [[ -f "$SCRIPT_DIR/install.js" ]] && command -v node &> /dev/null; then
-      echo ""
-      if confirm "Run devkit installer now?"; then
-        print_info "Launching devkit installer..."
-        cd "$SCRIPT_DIR"
-        npm install --silent 2>/dev/null
-        node install.js
-      fi
-    fi
-  fi
 
   echo ""
   echo "You may need to restart your terminal for all changes to take effect."

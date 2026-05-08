@@ -25,29 +25,7 @@ export RUNNING_FROM_SETUP=1
 # Run bootstrap
 "$SCRIPT_DIR/bootstrap.sh"
 
-# After bootstrap, Node should be installed
-# Source nvm if it exists (in case it was just installed)
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-
-# Run devkit installer
-if command -v node &> /dev/null; then
-  echo ""
-  echo -e "${CYAN}═══════════════════════════════════════════${NC}"
-  echo -e "${BOLD}Running devkit installer...${NC}"
-  echo ""
-
-  cd "$SCRIPT_DIR"
-  npm install --silent 2>/dev/null || npm install
-  node install.js
-
-  echo ""
-  echo -e "${GREEN}${BOLD}Complete setup finished!${NC}"
-  echo ""
-else
-  echo ""
-  echo -e "${CYAN}═══════════════════════════════════════════${NC}"
-  echo "Node.js not found. Skipping devkit installer."
-  echo "Run 'node install.js' manually after installing Node."
-  echo ""
-fi
+echo ""
+echo -e "${CYAN}═══════════════════════════════════════════${NC}"
+echo -e "${GREEN}${BOLD}Complete setup finished!${NC}"
+echo ""
