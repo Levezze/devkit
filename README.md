@@ -217,6 +217,8 @@ The smoke test runs the installer against a temporary `HOME` and verifies the fi
 
 `node install.js` discovers `skills/*/SKILL.md` automatically and regenerates `agents/openai.yaml` from the frontmatter description when needed.
 
+`node scripts/sync-skills.js` without `--apply` is a dry run. Use `--envs=claude,codex,cursor` or `DEVKIT_AI_ENVS` to limit link repair to a selected environment subset.
+
 ### Add An Agent
 
 1. Create `claude/agents/<agent-name>.md`.

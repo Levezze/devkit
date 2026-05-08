@@ -102,17 +102,14 @@ For each `agree` finding, in order from most-load-bearing to least:
 
 ### 6. Verify
 
-In order, all green required before commit:
+Run the repository's configured verification gates before commit. Detect them from project files instead of assuming a package manager:
 
-1. `pnpm build` — mandatory per project CLAUDE.md. Vitest is loose on types; only `tsc --strict` catches what tsc catches.
-2. `pnpm test` — full unit suite.
-3. `pnpm lint` — Biome (or repo's configured linter). Run `lint:fix` only if the user has authorized auto-fixes; otherwise surface lint errors as a fix-list.
+1. Read the repo instructions (`CLAUDE.md`, `AGENTS.md`, README, package scripts, Makefile, pyproject, etc.) for required build/test/lint commands.
+2. Prefer the repo's broadest cheap deterministic gates: build/typecheck, unit/integration tests, then lint/format checks.
+3. If the repo has no configured gate for a category, mark it `n/a` in the final summary instead of inventing one.
+4. Run e2e only when the change touches request-path code, query shape, env wiring, browser behavior, or another path the repo instructions say requires e2e.
 
-If any gate fails, fix the failure (root cause, not by neutering the test) and re-run from step 1. Do not commit on red.
-
-E2E (`pnpm test:e2e`) — run only if the change touches request-path code, query shape, env wiring, or webhook ordering, and only against `.env` (local). Do not auto-run e2e against deployed/demo/prod from this skill.
-
-`/fix-pr-review` does not gate merge. Project CLAUDE.md mandates a green full e2e before any merge. After the final fix round on a PR, run `pnpm test:e2e` (or the env variant) before invoking `/pr-merge`. The skill will not do this for you.
+If any gate fails, fix the failure (root cause, not by neutering the test) and re-run the relevant gate. Do not commit on red. Run auto-fix commands only when the user has authorized auto-fixes or the repo instructions explicitly make them part of the normal workflow.
 
 ### 7. Commit
 
@@ -146,5 +143,5 @@ Open: <PR url>
 - **Symptom-fixing.** Editing exactly the line the reviewer pointed at without understanding the root cause. The fix often belongs one or two layers up.
 - **Patch-test cheating.** Loosening an assertion or deleting a test because the new behavior makes it red. The test was either right (your fix is wrong) or already bad (replace it, don't quietly mutate it).
 - **Stacking unrelated cleanups.** This commit addresses the review round. Don't fold in refactors, dependency bumps, or drive-by renames the reviewer didn't raise. Open a separate branch for those.
-- **Skipping `pnpm build`.** Vitest green ≠ tsc strict green. The build gate is the only thing that catches a class of type drift before it ships.
+- **Hard-coding verification commands.** This skill is global. Do not assume `pnpm`, Jest, Vitest, Biome, or e2e scripts exist. Detect and run the repo's actual gates.
 - **Silent stance flips.** If during fixes you discover the reviewer was wrong on something you initially marked `agree`, stop, surface it, and reconcile — don't silently downgrade it to `skip` mid-implementation.

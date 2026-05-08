@@ -31,6 +31,14 @@ function isUserSkillName(name) {
   return !name.startsWith('.');
 }
 
+function selectedEnvironmentEntries(environments = Object.keys(ENVIRONMENTS)) {
+  const selected = Array.isArray(environments) ? environments : String(environments).split(',');
+  return selected
+    .map(environment => String(environment).trim())
+    .filter(environment => Object.hasOwn(ENVIRONMENTS, environment))
+    .map(environment => [environment, ENVIRONMENTS[environment]]);
+}
+
 function isCorrectSymlink(destPath, expectedTarget) {
   try {
     const stat = fs.lstatSync(destPath);
@@ -192,7 +200,7 @@ export function generatedOpenAiYaml(rootDir, skillName) {
   ].join('\n');
 }
 
-export function syncSkillMetadata(rootDir = ROOT_DIR) {
+export function syncSkillMetadata(rootDir = ROOT_DIR, { apply = false } = {}) {
   const result = { updated: [], current: [], errors: [] };
 
   for (const skillName of discoverSkills(rootDir)) {
@@ -206,8 +214,10 @@ export function syncSkillMetadata(rootDir = ROOT_DIR) {
         continue;
       }
 
-      fs.mkdirSync(path.dirname(yamlPath), { recursive: true });
-      fs.writeFileSync(yamlPath, expected, 'utf-8');
+      if (apply) {
+        fs.mkdirSync(path.dirname(yamlPath), { recursive: true });
+        fs.writeFileSync(yamlPath, expected, 'utf-8');
+      }
       result.updated.push(skillName);
     } catch (error) {
       result.errors.push({ skill: skillName, message: error.message });
@@ -221,6 +231,7 @@ export function syncInstalledSkillLinks({
   rootDir = ROOT_DIR,
   homeDir = process.env.HOME,
   apply = false,
+  environments = Object.keys(ENVIRONMENTS),
 } = {}) {
   const result = {
     fixed: [],
@@ -229,7 +240,7 @@ export function syncInstalledSkillLinks({
   };
   const repoSkills = new Set(discoverSkills(rootDir));
 
-  for (const [environment, parts] of Object.entries(ENVIRONMENTS)) {
+  for (const [environment, parts] of selectedEnvironmentEntries(environments)) {
     const envSkillsDir = path.join(homeDir, ...parts);
     const installed = exists(envSkillsDir)
       ? fs.readdirSync(envSkillsDir, { withFileTypes: true })
@@ -305,7 +316,7 @@ export function syncInstalledSkillLinks({
 }
 
 export function syncAllSkills(options = {}) {
-  const metadata = syncSkillMetadata(options.rootDir);
+  const metadata = syncSkillMetadata(options.rootDir, { apply: options.apply });
   const links = syncInstalledSkillLinks(options);
   return { metadata, links };
 }

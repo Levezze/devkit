@@ -12,7 +12,7 @@
 # - New skill directories are discovered automatically
 # - Codex openai.yaml metadata is generated from SKILL.md frontmatter
 # - x-devkit-model-tier: highest becomes a generated model-tier instruction
-# - All SKILL.md files have valid YAML frontmatter (Codex strict-parses)
+# - All SKILL.md files satisfy the frontmatter contract Codex depends on
 #
 # Run from devkit repo root: ./scripts/smoke.sh
 
@@ -28,7 +28,7 @@ pass() { echo "  PASS: $*"; }
 echo "Sandbox: $SANDBOX"
 echo
 
-echo "[1/7] Validate SKILL.md frontmatter is parseable YAML"
+echo "[1/7] Validate SKILL.md frontmatter contract"
 node -e "
 const fs = require('fs');
 const path = require('path');
@@ -50,7 +50,18 @@ for (const f of skillFiles) {
 }
 process.exit(bad ? 1 : 0);
 " || fail "frontmatter validation failed"
-pass "all SKILL.md frontmatter valid"
+node -e "
+import('$REPO_ROOT/src/skill-sync.js').then(m => {
+  const result = m.syncSkillMetadata('$REPO_ROOT', { apply: false });
+  if (result.errors.length > 0) {
+    throw new Error('metadata errors: ' + JSON.stringify(result.errors));
+  }
+  if (result.updated.length > 0) {
+    throw new Error('generated metadata is stale: ' + result.updated.join(', '));
+  }
+});
+" || fail "frontmatter metadata contract failed"
+pass "all SKILL.md frontmatter valid and generated metadata current"
 
 echo
 echo "[2/7] Verify skill discovery and generated Codex metadata"
@@ -71,9 +82,14 @@ const repo = '$REPO_ROOT';
 import(repo + '/src/skill-sync.js').then(m => {
   const names = m.discoverSkillNames(root);
   if (!names.includes('smoke-auto-skill')) throw new Error('auto skill was not discovered');
-  const result = m.syncSkillMetadata(root);
-  if (!result.updated.includes('smoke-auto-skill')) throw new Error('openai.yaml was not generated');
+  const dryRun = m.syncSkillMetadata(root, { apply: false });
+  if (!dryRun.updated.includes('smoke-auto-skill')) throw new Error('dry run did not detect missing openai.yaml');
   const fs = require('fs');
+  if (fs.existsSync(root + '/skills/smoke-auto-skill/agents/openai.yaml')) {
+    throw new Error('dry run wrote openai.yaml');
+  }
+  const result = m.syncSkillMetadata(root, { apply: true });
+  if (!result.updated.includes('smoke-auto-skill')) throw new Error('openai.yaml was not generated');
   const yaml = fs.readFileSync(root + '/skills/smoke-auto-skill/agents/openai.yaml', 'utf-8');
   if (!yaml.includes('short_description: \"Smoke auto skill summary sentence.\"')) {
     throw new Error('generated summary did not use first description sentence');
@@ -109,6 +125,27 @@ import('$REPO_ROOT/src/skill-sync.js').then(m => {
   }
 });
 " || fail "highest-tier skill metadata missing"
+SYNC_HOME="$SANDBOX/sync-home"
+node -e "
+import('$REPO_ROOT/src/skill-sync.js').then(m => {
+  const result = m.syncInstalledSkillLinks({
+    rootDir: '$AUTO_ROOT',
+    homeDir: '$SYNC_HOME',
+    apply: true,
+    environments: ['codex'],
+  });
+  const fs = require('fs');
+  if (!fs.lstatSync('$SYNC_HOME/.codex/skills/smoke-auto-skill').isSymbolicLink()) {
+    throw new Error('codex skill symlink missing');
+  }
+  if (fs.existsSync('$SYNC_HOME/.claude') || fs.existsSync('$SYNC_HOME/.cursor')) {
+    throw new Error('sync created unselected environment directories');
+  }
+  if (!result.fixed.some(item => item.environment === 'codex')) {
+    throw new Error('sync did not report codex fix');
+  }
+});
+" || fail "selected-environment sync failed"
 pass "new skills are discovered and Codex metadata is generated"
 
 echo

@@ -263,12 +263,15 @@ export async function installFiles(files) {
   overwriteStrategy = null;
 
   if (files.some(file => file.src.startsWith('skills/'))) {
-    const syncResult = syncSkillMetadata(ROOT_DIR);
+    const syncResult = syncSkillMetadata(ROOT_DIR, { apply: true });
     if (syncResult.updated.length > 0) {
       console.log(chalk.gray(`  Synced Codex metadata for ${syncResult.updated.length} skill(s)`));
     }
     for (const error of syncResult.errors) {
       console.log(chalk.red(`  ✗ Failed to sync ${error.skill} metadata: ${error.message}`));
+    }
+    if (syncResult.errors.length > 0) {
+      throw new Error('Skill metadata sync failed. Fix the errors above before installing.');
     }
   }
 

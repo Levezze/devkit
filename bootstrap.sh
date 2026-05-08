@@ -687,7 +687,7 @@ main() {
   select_ai_environments
 
   if [[ "$AI_ONLY" == "1" ]]; then
-    if [[ "$INSTALL_CLAUDE" == "1" || "$INSTALL_CURSOR" == "1" ]]; then
+    if [[ "$INSTALL_CLAUDE" == "1" || ( "$INSTALL_CURSOR" == "1" && "$OS" == "macos" ) ]]; then
       install_homebrew
 
       if [[ -f "$BREW_PREFIX/bin/brew" ]]; then

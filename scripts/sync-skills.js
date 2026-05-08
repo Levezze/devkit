@@ -2,14 +2,24 @@
 import { syncAllSkills, ROOT_DIR } from '../src/skill-sync.js';
 
 const apply = process.argv.includes('--apply');
-const result = syncAllSkills({ rootDir: ROOT_DIR, apply });
+const envsArg = process.argv.find(arg => arg.startsWith('--envs='));
+const environments = (envsArg?.slice('--envs='.length) || process.env.DEVKIT_AI_ENVS || '')
+  .split(',')
+  .map(environment => environment.trim())
+  .filter(Boolean);
+const result = syncAllSkills({
+  rootDir: ROOT_DIR,
+  apply,
+  environments: environments.length > 0 ? environments : undefined,
+});
 
 const metadataCount = result.metadata.updated.length;
 const linkCount = result.links.fixed.length;
 const gapCount = result.links.bigGaps.length + result.metadata.errors.length;
 
 if (metadataCount > 0) {
-  console.log(`Updated Codex metadata for ${metadataCount} skill(s): ${result.metadata.updated.join(', ')}`);
+  const verb = apply ? 'Updated' : 'Would update';
+  console.log(`${verb} Codex metadata for ${metadataCount} skill(s): ${result.metadata.updated.join(', ')}`);
 } else {
   console.log('Codex metadata is current.');
 }
