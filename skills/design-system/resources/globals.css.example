@@ -12,9 +12,14 @@
  * Never hardcode hex inside @utility bodies — route through var() so tokens
  * flip with the theme. Never use bg-white / text-black directly on themed
  * surfaces — use bg-background / text-foreground.
+ *
+ * shadcn projects: add additional @imports from your shadcn init output here
+ * (e.g. @import "tw-animate-css"; @import "shadcn/tailwind.css";).
+ * This example shows the minimal baseline — don't strip shadcn's own layers.
  */
 
 @import "tailwindcss";
+/* shadcn projects — add @import "tw-animate-css" and shadcn CSS layer here */
 
 /* ── Theme mapping — CSS vars → Tailwind utilities ─────────────── */
 @theme inline {

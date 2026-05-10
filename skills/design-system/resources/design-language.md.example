@@ -81,7 +81,7 @@ All tokens in `:root` / `.dark` in `globals.css`. Never hardcode hex in componen
 
 ## 6. Interactive States
 
-Five utilities handle hover. Never roll bespoke hover in component files.
+Three utilities handle hover. Never roll bespoke hover in component files.
 
 | Utility | Use for |
 |---------|---------|

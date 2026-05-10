@@ -13,6 +13,9 @@
  * the rounded-card + interactive-card recipe inline.
  */
 
+// Slot import varies by package:
+//   Combined package (radix-ui v1+):   import { Slot } from "radix-ui"; → use Slot.Root
+//   Individual package (@radix-ui/react-slot): import { Slot } from "@radix-ui/react-slot"; → use <Slot> directly
 import { Slot } from "radix-ui";
 import type * as React from "react";
 import { cn } from "@/lib/utils";

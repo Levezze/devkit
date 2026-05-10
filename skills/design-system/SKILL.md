@@ -18,7 +18,7 @@ Probe the repo (read-only). Look for these 6 markers:
 
 **≥ 4 markers present → audit mode. Otherwise → bootstrap mode.** Always confirm with the user before proceeding.
 
-Also detect the framework (`package.json` → next / vite / remix / astro) and Tailwind version. Adapt all paths accordingly (`app/` for Next.js App Router, `src/` for Vite/Remix). If shadcn is not installed, recommend installing it before continuing — do not scaffold without it.
+Also detect the framework (`package.json` → next / vite / remix / astro) and Tailwind version. **If Tailwind version is < 4 (v3 or earlier), stop.** Explain that this skill targets Tailwind v4's `@theme inline` system and cannot safely audit or scaffold a v3 project. Adapt all paths accordingly (`app/` for Next.js App Router, `src/` for Vite/Remix). If shadcn is not installed, recommend installing it before continuing — do not scaffold without it.
 
 ## Phase 1 — Interview
 
@@ -38,16 +38,18 @@ User picks one variant. Iterate on that variant only if adjustments are needed �
 
 ### Step 2 — Generate artifacts
 
-Once the variant is chosen, write these files:
+Once the variant is chosen, write these files in this order — the mock catalog depends on the centralized components, so create components first:
 
-| File | Reference |
-|------|-----------|
-| `app/globals.css` | `resources/globals.css.example` |
-| `lib/utils.ts` (merge only; preserve non-twMerge exports) | `resources/utils.ts.example` |
-| `app/mock/index.tsx` + `app/mock/theme/page.tsx` + `app/mock/components/page.tsx` + `app/mock/pages/home/page.tsx` | `resources/mock-catalog/` |
-| `docs/guides/design-language-app.md` | `resources/design-language.md.example` |
+| File | Reference | Notes |
+|------|-----------|-------|
+| `app/globals.css` | `resources/globals.css.example` | Adjust paths for framework |
+| `lib/utils.ts` (merge only; preserve non-twMerge exports) | `resources/utils.ts.example` | Adjust paths for framework |
+| `components/ui/button.tsx` | shadcn Button — add `gradient` variant | Wire to `cta-gradient` utility: `gradient: "cta-gradient text-white"` in cva variants |
+| `components/shared/cards/action-card.tsx` | `resources/component-pattern.example.tsx` | Adapt import paths; this is what mock catalog imports |
+| `app/mock/page.tsx` + `app/mock/theme/page.tsx` + `app/mock/components/page.tsx` + `app/mock/pages/home/page.tsx` | `resources/mock-catalog/` | Adjust all paths for framework; `page.tsx` not `index.tsx` |
+| `docs/guides/design-language-app.md` | `resources/design-language.md.example` | — |
 
-Read each resource file before writing its counterpart. Substitute the chosen palette + typography + shape vibe throughout.
+Read each resource file before writing its counterpart. Substitute the chosen palette + typography + shape vibe throughout. Adapt all `@/components/...` import paths to the target project's actual structure.
 
 Default to **one manifesto**. Add `design-language-marketing.md` only if the user has explicitly described a distinct marketing surface.
 
