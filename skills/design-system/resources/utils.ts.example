@@ -1,0 +1,39 @@
+/**
+ * lib/utils.ts — tailwind-merge + cn helper
+ *
+ * RULE: every custom @utility defined in globals.css that starts with "text-"
+ * MUST be listed in the "font-size" class group below. Without this,
+ * tailwind-merge treats them as text-color classes and silently strips them
+ * when another text-* color utility appears in the same cn() call.
+ *
+ * Similarly, every interactive-* utility must be listed in the "interactive"
+ * group so they resolve correctly when combined with hover:* variants.
+ *
+ * When you add a new @utility to globals.css, add it here in the same commit.
+ */
+
+import { type ClassValue, clsx } from "clsx";
+import { extendTailwindMerge } from "tailwind-merge";
+
+const twMerge = extendTailwindMerge<"interactive">({
+  extend: {
+    classGroups: {
+      // Must mirror every text-* font-size utility in globals.css
+      "font-size": [
+        "text-heading",
+        "text-body",
+        "text-small",
+      ],
+      // Must mirror every interactive-* utility in globals.css
+      interactive: [
+        "interactive-card",
+        "interactive-chip",
+        "interactive-text",
+      ],
+    },
+  },
+});
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}

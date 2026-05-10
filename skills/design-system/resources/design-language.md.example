@@ -1,0 +1,137 @@
+# App Design Language: [Name]
+
+The visual language for [app name]. Every decision serves [core goal — e.g. "daily usability over visual flair" or "clarity and calm over excitement"].
+
+**North star:** [One sentence. What does great design feel like here? Who is it for?]
+
+---
+
+## 1. Typography
+
+Two fonts: [Serif] for headings, [Sans-serif] for everything else.
+
+Three sizes — pick by role, not pixels:
+
+| Utility | Size | Use for |
+|---------|------|---------|
+| `text-heading` | 24px | Page titles |
+| `text-body` | 16px | Body, buttons, inputs |
+| `text-small` | 12px | Captions, badges, helper text |
+
+Two weights: normal (400) for body, semibold (600) for emphasis. Never introduce a third weight without a documented reason.
+
+Never use native Tailwind `text-sm` / `text-lg` for content — use the semantic tokens above so sizes are tunable from one place.
+
+---
+
+## 2. Spacing
+
+Two max-widths:
+
+| Utility | Value | Use for |
+|---------|-------|---------|
+| `max-w-page` | 1120px | Full-width layouts |
+| `max-w-content` | 768px | Focused single-column content |
+
+Standard vertical rhythm: `space-y-6` between top-level sections, `gap-4` between cards.
+
+---
+
+## 3. Radii
+
+Defined as CSS vars; change globally from `:root`.
+
+| Utility | Use for |
+|---------|---------|
+| `rounded-card` | Cards, dialogs, panels |
+| `rounded-button` | Pill buttons |
+| `rounded-input` | Inputs, selects |
+| `rounded-badge` | Tags, chips |
+
+---
+
+## 4. Elevation
+
+Flat by default. Borders carry depth at rest; shadows activate on interaction.
+
+| Element | Shadow |
+|---------|--------|
+| Card (resting) | none — border only |
+| Card (hover) | baked into `interactive-card` |
+| Dialog / popover | `shadow-overlay` |
+
+Never use `hover:shadow-lg` on a card — `interactive-card` owns that recipe.
+
+---
+
+## 5. Colors
+
+All tokens in `:root` / `.dark` in `globals.css`. Never hardcode hex in components.
+
+| Need | Token |
+|------|-------|
+| Page background | `bg-background` |
+| Card background | `bg-card` or `card-surface` utility |
+| Primary text | `text-foreground` |
+| Secondary text | `text-muted-foreground` |
+| Interactive accent | `text-primary` / `bg-primary` |
+| Error / destructive | `text-destructive` |
+
+---
+
+## 6. Interactive States
+
+Five utilities handle hover. Never roll bespoke hover in component files.
+
+| Utility | Use for |
+|---------|---------|
+| `interactive-card` | Clickable cards (border + shadow on hover) |
+| `interactive-chip` | Tags, filter chips |
+| `interactive-text` | Inline text links |
+
+If `interactive-card` is applied, the element must also declare an explicit `border` at rest — without it the hover border-color has nothing to transition from.
+
+---
+
+## 7. Buttons
+
+Managed by `Button` in `components/ui/button.tsx`. Default to the `gradient` variant for primary CTAs. Do not recreate the CTA gradient inline — use the `cta-gradient` utility.
+
+---
+
+## 8. Cards
+
+Two families:
+
+- **`ContentCard`** — flat info panel, used for settings, forms, copy blocks.
+- **`ActionCard`** — interactive surface with `interactive-card` hover, used for navigation and selectable items.
+
+Both use `rounded-card border border-border/60`. Padding is NOT baked in — callers decide.
+
+---
+
+## 9. Loading States
+
+Each component owns its loading branch inline — no global skeleton registry. Use the `Skeleton` primitive (`components/ui/skeleton.tsx`) with `.animate-skeleton-pulse`. Outer shape must match the real component; internal detail doesn't have to.
+
+---
+
+## 10. Animation
+
+Page load: `opacity 0→1`, `y 12→0`, 0.4s ease-out, ~80ms stagger between siblings.
+
+No scroll-triggered reveals, no page transitions, no rotation or bounce animations.
+
+---
+
+## 11. CSS Variables Reference
+
+All defined in `:root` in `globals.css`. Tune from one place.
+
+| Category | Variables |
+|----------|-----------|
+| Typography | `--text-heading`, `--text-body`, `--text-small` (+ `-lh` pairs) |
+| Radii | `--radius-card`, `--radius-button`, `--radius-input`, `--radius-badge` |
+| Elevation | `--shadow-card`, `--shadow-elevated`, `--shadow-overlay` |
+| Widths | `--width-page`, `--width-content` |
+| Gradient | `--gradient-from`, `--gradient-to` |
