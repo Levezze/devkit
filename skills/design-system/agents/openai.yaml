@@ -1,0 +1,4 @@
+interface:
+  display_name: "Design System"
+  short_description: "Bootstrap or audit a centralized design system (Tailwind v4 + shadcn)."
+  default_prompt: "Use the /design-system skill: Bootstrap or audit a centralized design system (Tailwind v4 + shadcn)."

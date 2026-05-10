@@ -1,0 +1,198 @@
+/**
+ * Example globals.css — Design System baseline
+ *
+ * Structure (top to bottom, always in this order):
+ *   1. @import directives
+ *   2. @theme inline  — maps CSS vars → Tailwind utilities
+ *   3. @utility blocks — custom Tailwind utilities
+ *   4. :root           — token values (light mode)
+ *   5. .dark           — dark mode overrides
+ *   6. @layer base     — element defaults
+ *
+ * Never hardcode hex inside @utility bodies — route through var() so tokens
+ * flip with the theme. Never use bg-white / text-black directly on themed
+ * surfaces — use bg-background / text-foreground.
+ *
+ * shadcn projects: add additional @imports from your shadcn init output here
+ * (e.g. @import "tw-animate-css"; @import "shadcn/tailwind.css";).
+ * This example shows the minimal baseline — don't strip shadcn's own layers.
+ */
+
+@import "tailwindcss";
+/* shadcn projects — add @import "tw-animate-css" and shadcn CSS layer here */
+
+/* ── Theme mapping — CSS vars → Tailwind utilities ─────────────── */
+@theme inline {
+  /* Colors */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+
+  /* Typography — 3 sizes default, 5 max */
+  --text-heading: var(--text-heading);
+  --text-heading--line-height: var(--text-heading-lh);
+  --text-body: var(--text-body);
+  --text-body--line-height: var(--text-body-lh);
+  --text-small: var(--text-small);
+  --text-small--line-height: var(--text-small-lh);
+
+  /* Semantic radii */
+  --radius-card: var(--radius-card);
+  --radius-button: var(--radius-button);
+  --radius-input: var(--radius-input);
+  --radius-badge: var(--radius-badge);
+
+  /* Elevation */
+  --shadow-card: var(--shadow-card);
+  --shadow-elevated: var(--shadow-elevated);
+  --shadow-overlay: var(--shadow-overlay);
+
+  /* Widths */
+  --max-width-page: var(--width-page);
+  --max-width-content: var(--width-content);
+}
+
+/* ── Custom utilities ────────────────────────────────────────────── */
+
+/* CTA gradient — single source of truth for primary action paint.
+   Consumers: gradient Button variant, hero CTAs, auth forms.        */
+@utility cta-gradient {
+  background: linear-gradient(135deg, var(--gradient-from), var(--gradient-to));
+  cursor: pointer;
+  transition: filter 150ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:hover { filter: brightness(1.08); }
+  &:disabled { cursor: not-allowed; }
+}
+
+/* Card surfaces — subtle gradient fill instead of flat bg-card.     */
+@utility card-surface {
+  background: linear-gradient(
+    160deg,
+    var(--card-surface-from) 0%,
+    var(--card-surface-to) 100%
+  );
+}
+
+/* Interactive hover recipes.
+   SPECIFICITY NOTE: doubled class selector (.interactive-card.interactive-card:hover)
+   raises specificity above standalone Tailwind utilities so hover border-color wins. */
+@utility interactive-card {
+  cursor: pointer;
+  transition-property: border-color, box-shadow;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+
+  &.interactive-card:hover {
+    border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.06);
+  }
+}
+
+@utility interactive-chip {
+  cursor: pointer;
+  transition-property: color, background-color, border-color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+@utility interactive-text {
+  cursor: pointer;
+  transition-property: color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* ── :root — light mode tokens ───────────────────────────────────── */
+:root {
+  /* Typography — tune sizes here, never in component files */
+  --text-heading: 1.5rem;    /* 24px */
+  --text-heading-lh: 2rem;   /* 32px */
+  --text-body: 1rem;         /* 16px — never use 14px for body copy */
+  --text-body-lh: 1.5rem;    /* 24px */
+  --text-small: 0.75rem;     /* 12px */
+  --text-small-lh: 1rem;     /* 16px */
+
+  /* Width system */
+  --width-page: 70rem;       /* 1120px — full layouts */
+  --width-content: 48rem;    /* 768px — focused single-column */
+
+  /* Semantic radii — change here to tune globally */
+  --radius-card: 1.5rem;     /* 24px */
+  --radius-button: 9999px;   /* pill */
+  --radius-input: 0.75rem;   /* 12px */
+  --radius-badge: 9999px;    /* pill */
+
+  /* Elevation */
+  --shadow-card: none;
+  --shadow-elevated: 0 4px 12px rgb(0 0 0 / 0.08), 0 1px 3px rgb(0 0 0 / 0.05);
+  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.10), 0 2px 6px rgb(0 0 0 / 0.05);
+
+  /* CTA gradient endpoints — swap here, used via cta-gradient utility */
+  --gradient-from: #2a9d8f;
+  --gradient-to:   #5889b8;
+
+  /* Card surface gradient stops */
+  --card-surface-from: #f6f8f6;
+  --card-surface-to:   #f0f3f1;
+
+  /* ── Color tokens — replace with your palette ─────── */
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+  --card:        #ffffff;
+  --card-foreground: #1a1a1a;
+  --primary:     #2a9d8f;
+  --primary-foreground: #ffffff;
+  --muted:       #e8eaed;
+  --muted-foreground: #888888;
+  --border:      #e8eaed;
+  --input:       #e8eaed;
+  --ring:        #2a9d8f;
+  --destructive: #b94a38;
+}
+
+/* ── .dark — dark mode overrides ────────────────────────────────── */
+.dark {
+  --shadow-elevated: 0 4px 12px rgb(0 0 0 / 0.20), 0 1px 3px rgb(0 0 0 / 0.12);
+  --shadow-overlay:  0 8px 24px rgb(0 0 0 / 0.28), 0 2px 6px rgb(0 0 0 / 0.14);
+
+  --card-surface-from: #1a1f26;
+  --card-surface-to:   #141920;
+
+  --background: #0f1419;
+  --foreground: #e2e4e8;
+  --card:        #1a1f26;
+  --card-foreground: #e2e4e8;
+  --primary:     #3dbfaf;
+  --primary-foreground: #0f1419;
+  --muted:       #1e2329;
+  --muted-foreground: #8a8f96;
+  --border:      #2a2f36;
+  --input:       #2a2f36;
+  --ring:        #3dbfaf;
+  --destructive: #c4593e;
+}
+
+/* ── Skeleton animation ──────────────────────────────────────────── */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+.animate-skeleton-pulse {
+  animation: skeleton-pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ── Base layer ──────────────────────────────────────────────────── */
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  body { @apply bg-background text-foreground font-sans; }
+}
