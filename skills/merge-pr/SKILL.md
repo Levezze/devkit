@@ -10,6 +10,12 @@ Run the full merge-and-promote gate for a PR. Two modes:
 
 Never invent your own merge sequence or skip steps "because it's a small change." The whole point of this skill is that every step is non-negotiable until proven otherwise.
 
+## Scope
+
+This skill encodes the AevArk/mvp-api merge workflow. The specifics — Prisma migrate + seed commands, Cloud Build region sweep, Hono `/health` endpoint, the `pnpm test:e2e:deployed` / `:prod` harness, the `git merge --no-ff` forward-merge promotion model — are mvp-api conventions. For other repos, follow the same gate **structure** (CI check → confirm → merge → wait-for-deploy → e2e → optional prod promote) but substitute the repo's equivalent commands. If you find yourself reaching for this skill in a non-mvp-api repo and ~half the steps don't apply, stop and ask the user whether they want a generalized variant rather than improvising.
+
+The `--production` flow additionally requires the Clerk-JWT auth path in mvp-api's e2e harness (added in AevArk/mvp-api PR #489). Until that PR has landed on `main`, step 16 will hit the dev-bypass auth on prod and 401 every call.
+
 ## Invocation forms
 
 - `/merge-pr` — resolve PR from current branch.
@@ -29,7 +35,7 @@ Never invent your own merge sequence or skip steps "because it's a small change.
 
 4. **Confirm with the user**: "Merge PR #N to main?" Wait for explicit yes. Don't proceed on assumption.
 
-5. **Merge.** Use the repo's convention — read `CLAUDE.md` or recent merge commits to determine squash vs merge-commit vs rebase. Typical: `gh pr merge <N> --squash` (or `--merge`, depending on convention). NEVER pass `--no-verify` or hook-skip flags.
+5. **Merge.** Default to `gh pr merge <N> --squash`. Only deviate if the repo's `CLAUDE.md` explicitly mandates a different strategy (e.g. `--merge` for preserving multi-commit history on long branches). NEVER pass `--no-verify` or hook-skip flags. If the user has overridden the strategy in the current conversation, honor that; otherwise squash.
 
 6. **Checkout main and pull.** `git checkout main && git pull`.
 
