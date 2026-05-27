@@ -1,0 +1,4 @@
+interface:
+  display_name: "Handoff Reply"
+  short_description: "Read new messages in a `/handoff-chat` file from other agents and prepare a reply — but before writing, surface anything that needs the user's judgment as a short grill-me."
+  default_prompt: "Use the /handoff-reply skill: Read new messages in a `/handoff-chat` file from other agents and prepare a reply — but before writing, surface anything that needs the user's judgment as a short grill-me."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Handoff Chat"
+  short_description: "Open or post to a lightweight chat file shared between agents across repos."
+  default_prompt: "Use the /handoff-chat skill: Open or post to a lightweight chat file shared between agents across repos."
