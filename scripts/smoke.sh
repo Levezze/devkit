@@ -111,23 +111,21 @@ import('$REPO_ROOT/src/packages.js').then(m => {
 " || fail "dynamic skill package discovery failed"
 node -e "
 import('$REPO_ROOT/src/skill-sync.js').then(m => {
-  // pr-review and fix-pr-review are deliberately pinned to Sonnet 4.6 to control
-  // plan-quota burn — review and review-fix workloads are high-volume pattern matching
-  // where Sonnet is sufficient. Do not raise these back to Opus without checking weekly usage.
+  // pr-review and fix-pr-review must NOT pin a non-Opus model. Pinning Sonnet broke
+  // every 1M-context session: Claude Code keeps the session's [1m] variant when it
+  // switches model, and Sonnet+1M requires usage credits while Opus+1M is plan-covered.
+  // These skills inherit the session model instead. See docs/adr/0001-no-model-pin-in-skill-frontmatter.md.
   for (const skill of ['pr-review', 'fix-pr-review']) {
     const metadata = m.readSkillMetadata('$REPO_ROOT', skill);
     if (metadata.modelTier) {
-      throw new Error(skill + ' should NOT set x-devkit-model-tier (pinned to Sonnet to control quota)');
+      throw new Error(skill + ' should NOT set x-devkit-model-tier (see ADR 0001)');
     }
-    if (metadata.model !== 'claude-sonnet-4-6') {
-      throw new Error(skill + ' should use Claude Code model: claude-sonnet-4-6');
-    }
-    if (metadata.effort !== 'high') {
-      throw new Error(skill + ' should use Claude Code effort: high');
+    if (metadata.model && metadata.model !== 'opus' && !String(metadata.model).startsWith('claude-opus')) {
+      throw new Error(skill + ' must not pin a non-Opus model — breaks 1M-context sessions (see ADR 0001)');
     }
   }
 });
-" || fail "Sonnet-pinned skill metadata missing"
+" || fail "review-skill model-pin policy violated"
 SYNC_HOME="$SANDBOX/sync-home"
 node -e "
 import('$REPO_ROOT/src/skill-sync.js').then(m => {
