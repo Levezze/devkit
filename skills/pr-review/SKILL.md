@@ -48,17 +48,33 @@ Each file uses a fresh timestamp, so prior runs are preserved and can be inspect
 
 ## Process
 
-0. Compute the run timestamp: `TS=$(date -u +%Y%m%dT%H%M%SZ)`. Compute the three file paths (`-main.md`, `-subagent.md`, `-final.md`) per "Findings files" above. Write a 1-line header (PR number, branch, timestamp) into the main file to anchor the append loop.
+0. Compute the run timestamp: `TS=$(date -u +%Y%m%dT%H%M%SZ)`. Compute the three file paths (`-main.md`, `-subagent.md`, `-final.md`) per "Findings files" above. Create the main file with this canonical skeleton — agents and the resume mechanism rely on the exact section names:
+
+   ```markdown
+   # /pr-review PR #<n> — main audit
+
+   - PR: <owner/repo>#<n> — <title>
+   - Branch: <head ref>
+   - Timestamp: <TS>
+
+   ## Grep gates
+
+   ## Files reviewed
+
+   ## Findings (append as discovered)
+
+   ## Synthesis notes
+   ```
 1. Identify the PR. Read its title, body, and the issue number it closes (`Closes #N` or `gh pr view <pr> --json number,closingIssuesReferences`).
 2. Read the issue body. Find the parent PRD reference (`## Parent PRD` or similar).
 3. Read the PRD body. Note the acceptance criteria, the user stories, the implementation decisions, and the out-of-scope list. The PRD is the contract; the PR is the delivery.
 4. Read the diff in full (`gh pr diff <pr>`). Then read the touched files in full — diffs hide context.
 5. Spawn the **code-reviewer** agent in parallel with steps 6–8 below for code-level audit. The brief MUST include:
-   - The PRD scope and ADR-025 §1/§2.
+   - The PRD scope and any project-specific architectural constraints relevant to the diff (e.g. controller/service boundary rules if the repo has them).
    - A literal line `OUTPUT_FILE: /tmp/pr-review-<pr#>-<TS>-subagent.md` so the agent streams findings to disk per its protocol.
    - An explicit reminder that the agent must return ONLY a short status (path + per-severity counts + verdict), not the findings themselves.
-6. Run grep gates: `grep -rEn 'from "\.\./[^"]*\.service"' src/` outside the owning module's directory must return zero. Service-to-controller cross-module imports must return zero. Append a one-line result for each gate to the main file as the gate runs — do not batch.
-7. Audit specifically for the smells below. Be hostile. The PR is guilty until proven innocent. **Append each finding to the main file as it is discovered**, one finding per `Edit` call, in the form `- file:path:line — <category> — <severity> — <note>`. Do not hold findings in conversational memory and dump them at the end.
+6. Run any architectural grep gates relevant to the repo (e.g. cross-module service imports for projects with a controller/service split). Append a one-line result for each gate to the `## Grep gates` section of the main file as the gate runs — do not batch.
+7. Audit specifically for the smells below. Be hostile. The PR is guilty until proven innocent. As you open each touched file for review, append its path to `## Files reviewed` *before* auditing it — this is the coverage log the resume mechanism reads. **Append each finding to `## Findings` as it is discovered**, one finding per `Edit` call, in the form `- file:path:line — <category> — <severity> — <note>`. Do not hold findings in conversational memory and dump them at the end.
 8. Produce findings. Read both the main file and the sub-agent file from disk. Synthesize the user-facing Output block (see "Output" below) and write it to the `-final.md` file *before* echoing it to chat — that file is the durable artifact if the chat-side message truncates. Critical or smell findings → fail. Pass only when all findings are addressed or explicitly accepted by the user.
 
 ### Resuming an interrupted review
@@ -66,7 +82,8 @@ Each file uses a fresh timestamp, so prior runs are preserved and can be inspect
 If a prior `/pr-review` run was killed mid-flight, its partial `/tmp/pr-review-<pr#>-<TS>-main.md` and possibly `-subagent.md` are still on disk. To resume:
 
 - The user pastes the partial file path (or just the `<pr#>-<TS>` stem) back into chat with an instruction like "resume from this".
-- Read the partial file to identify which areas/files have already been covered. Continue auditing from the next uncovered area, appending to the *same* file. Do not start a new timestamped run — that would orphan the partial work.
+- Read the partial file. Use the `## Files reviewed` section as the coverage log — files listed there have been audited (clean audits leave findings empty but the path still appears). Continue with files not on that list, appending to the *same* file. Do not start a new timestamped run — that would orphan the partial work.
+- The `## Files reviewed` log is best-effort: if the previous run crashed mid-file (path logged but audit not finished), re-auditing that file on resume is cheap insurance. Prefer redundant work over missed coverage.
 - The sub-agent can be resumed the same way: pass the existing `-subagent.md` path as `OUTPUT_FILE:` and instruct it to read what's already there and continue.
 
 ## Smells to find

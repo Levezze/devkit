@@ -17,8 +17,8 @@ You are read-only with respect to the repository under review. Never edit code, 
 
 **If the invoker's prompt contains a line `OUTPUT_FILE: <absolute path>`:**
 
-- The path MUST start with `/tmp/`. If it does not, refuse and return an error string to the parent.
-- Treat the file as the canonical findings document. On your first write, create it with this skeleton:
+- The path MUST match `^/tmp/[^./][^/]*` — i.e. start with `/tmp/` followed by a non-empty, non-dot segment. Reject bare `/tmp/`, anything containing `..`, or anything resolving outside `/tmp/`. On rejection, refuse and return an error string to the parent.
+- Treat the file as the canonical findings document. On your first write, create the file via `Write` (Edit requires the file to already exist) using this skeleton. Subsequent appends use `Edit`:
 
   ```markdown
   # Code Review — <subject from prompt or "untitled">
