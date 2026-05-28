@@ -1,6 +1,8 @@
 ---
 name: pr-review
 description: Diligent end-of-cycle PR review gate. Read-only — presents findings to the user, never applies fixes. Use after /pr or whenever you want to vet a branch before merge.
+model: claude-sonnet-4-6
+effort: high
 ---
 
 # PR Review
