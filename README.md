@@ -219,6 +219,14 @@ The smoke test runs the installer against a temporary `HOME` and verifies the fi
 
 `node scripts/sync-skills.js` without `--apply` is a dry run. Use `--envs=claude,codex,cursor` or `DEVKIT_AI_ENVS` to limit link repair to a selected environment subset.
 
+If a tool installer puts a new skill directly into Claude, Codex, or Cursor, import it intentionally:
+
+```bash
+node scripts/sync-skills.js --apply --force-import=notebooklm
+```
+
+If more than one selected environment has that external skill, qualify the source, such as `--force-import=claude/notebooklm`.
+
 ### Add An Agent
 
 1. Create `claude/agents/<agent-name>.md`.

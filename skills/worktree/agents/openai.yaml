@@ -1,0 +1,4 @@
+interface:
+  display_name: "Worktree"
+  short_description: "Enter an isolated git worktree on an auto-named branch, mid-session."
+  default_prompt: "Use the /worktree skill: Enter an isolated git worktree on an auto-named branch, mid-session."

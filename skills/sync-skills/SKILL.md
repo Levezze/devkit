@@ -24,6 +24,8 @@ If browsing is unavailable, stop and tell the user that model-tier sync is block
 
 1. Perform the model-tier freshness check above if any skill has `x-devkit-model-tier` or if the requested sync touches model policy.
 2. From the devkit repo root, run `node scripts/sync-skills.js --apply`. To limit link repair to selected environments, pass `--envs=claude,codex,cursor` with the desired subset or set `DEVKIT_AI_ENVS`.
+   - To intentionally import an external installed skill into devkit, pass `--force-import=<skill>`, for example `--force-import=notebooklm`.
+   - If the same external skill exists in multiple selected sources, qualify it as `--force-import=claude/notebooklm`, `--force-import=codex/notebooklm`, or `--force-import=cursor/notebooklm`.
 3. If the script only reports fixed metadata or symlink drift, summarize what changed.
 4. If the script reports "Needs user decision", stop and show those gaps to the user. Do not overwrite non-symlink user skill directories or delete skills from any environment without explicit approval.
 5. If files changed, run `./scripts/smoke.sh` before finishing.
@@ -32,5 +34,6 @@ If browsing is unavailable, stop and tell the user that model-tier sync is block
 
 - Small fixes are missing skill symlinks, stale symlink targets, and generated `agents/openai.yaml` drift.
 - Big gaps are installed skills that do not exist in `devkit/skills`, non-symlink skill directories/files in any target environment, or invalid skill frontmatter.
+- `--force-import=<skill>` turns one named external installed skill into an explicit user decision: copy it into `devkit/skills`, generate Codex metadata from its frontmatter, and replace the original installed directory with the managed symlink.
 - Codex metadata is generated from each `SKILL.md` frontmatter description. Improve that description when the generated summary needs better wording.
 - Running `node scripts/sync-skills.js` without `--apply` is a dry run and must not write files.

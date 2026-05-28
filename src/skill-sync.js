@@ -60,6 +60,27 @@ function readSymlinkTarget(destPath) {
   }
 }
 
+function validateSkillSelector(selector) {
+  const parts = String(selector).split('/').map(part => part.trim()).filter(Boolean);
+  if (parts.length < 1 || parts.length > 2) {
+    throw new Error(`invalid skill selector: ${selector}`);
+  }
+
+  const skillName = parts.at(-1);
+  if (!isUserSkillName(skillName) || skillName.includes('/') || skillName.includes(path.sep)) {
+    throw new Error(`invalid skill name: ${skillName}`);
+  }
+
+  if (parts.length === 2 && !Object.hasOwn(ENVIRONMENTS, parts[0])) {
+    throw new Error(`unknown skill environment: ${parts[0]}`);
+  }
+
+  return {
+    environment: parts.length === 2 ? parts[0] : null,
+    skillName,
+  };
+}
+
 function yamlString(value) {
   return JSON.stringify(value);
 }
@@ -227,11 +248,104 @@ export function syncSkillMetadata(rootDir = ROOT_DIR, { apply = false } = {}) {
   return result;
 }
 
+export function importExternalSkills({
+  rootDir = ROOT_DIR,
+  homeDir = process.env.HOME,
+  apply = false,
+  environments = Object.keys(ENVIRONMENTS),
+  forceImports = [],
+} = {}) {
+  const result = {
+    imported: [],
+    current: [],
+    errors: [],
+  };
+  const repoSkills = new Set(discoverSkills(rootDir));
+  const selectedEntries = selectedEnvironmentEntries(environments);
+
+  for (const selector of forceImports) {
+    let parsed;
+    try {
+      parsed = validateSkillSelector(selector);
+    } catch (error) {
+      result.errors.push({ skill: String(selector), message: error.message });
+      continue;
+    }
+
+    const { environment: requestedEnvironment, skillName } = parsed;
+    const destPath = path.join(rootDir, 'skills', skillName);
+    if (repoSkills.has(skillName)) {
+      result.current.push({ skill: skillName, reason: 'already present in devkit/skills' });
+      continue;
+    }
+
+    const candidates = selectedEntries
+      .filter(([environment]) => !requestedEnvironment || environment === requestedEnvironment)
+      .map(([environment, parts]) => ({
+        environment,
+        path: path.join(homeDir, ...parts, skillName),
+      }))
+      .filter(candidate => exists(candidate.path));
+
+    if (candidates.length === 0) {
+      const scope = requestedEnvironment ? `${requestedEnvironment}/` : '';
+      result.errors.push({
+        skill: skillName,
+        message: `${scope}${skillName} was not found in selected skill sources`,
+      });
+      continue;
+    }
+
+    if (candidates.length > 1) {
+      result.errors.push({
+        skill: skillName,
+        message: `found multiple sources (${candidates.map(candidate => `${candidate.environment}/${skillName}`).join(', ')}); use environment/name`,
+      });
+      continue;
+    }
+
+    const [candidate] = candidates;
+    if (!exists(path.join(candidate.path, 'SKILL.md'))) {
+      result.errors.push({
+        skill: skillName,
+        message: `${candidate.environment}/${skillName} is missing SKILL.md`,
+      });
+      continue;
+    }
+
+    if (apply) {
+      try {
+        fs.mkdirSync(path.dirname(destPath), { recursive: true });
+        fs.cpSync(candidate.path, destPath, { recursive: true });
+      } catch (error) {
+        result.errors.push({
+          skill: skillName,
+          message: `failed to import from ${candidate.environment}: ${error.message}`,
+        });
+        continue;
+      }
+      repoSkills.add(skillName);
+    }
+
+    result.imported.push({
+      environment: candidate.environment,
+      skill: skillName,
+      source: candidate.path,
+      destination: destPath,
+    });
+  }
+
+  return result;
+}
+
 export function syncInstalledSkillLinks({
   rootDir = ROOT_DIR,
   homeDir = process.env.HOME,
   apply = false,
   environments = Object.keys(ENVIRONMENTS),
+  forceRelinkSkills = [],
+  forceRelinkTargets = [],
+  plannedRepoSkills = [],
 } = {}) {
   const result = {
     fixed: [],
@@ -239,6 +353,11 @@ export function syncInstalledSkillLinks({
     bigGaps: [],
   };
   const repoSkills = new Set(discoverSkills(rootDir));
+  for (const skillName of plannedRepoSkills) {
+    repoSkills.add(skillName);
+  }
+  const forceRelinkSet = new Set(forceRelinkSkills);
+  const forceRelinkTargetSet = new Set(forceRelinkTargets);
 
   for (const [environment, parts] of selectedEnvironmentEntries(environments)) {
     const envSkillsDir = path.join(homeDir, ...parts);
@@ -276,6 +395,28 @@ export function syncInstalledSkillLinks({
           }
           result.fixed.push({ environment, skill: skillName, reason: 'relinked stale symlink' });
         } else {
+          if (forceRelinkSet.has(skillName) || forceRelinkTargetSet.has(`${environment}/${skillName}`)) {
+            if (apply) {
+              try {
+                fs.rmSync(destPath, { recursive: true, force: true });
+                fs.symlinkSync(srcPath, destPath);
+              } catch (error) {
+                result.bigGaps.push({
+                  environment,
+                  skill: skillName,
+                  reason: `failed to force relink existing skill: ${error.message}`,
+                });
+                continue;
+              }
+            }
+            result.fixed.push({
+              environment,
+              skill: skillName,
+              reason: 'force relinked existing skill directory',
+            });
+            continue;
+          }
+
           result.bigGaps.push({
             environment,
             skill: skillName,
@@ -316,7 +457,19 @@ export function syncInstalledSkillLinks({
 }
 
 export function syncAllSkills(options = {}) {
+  const imports = importExternalSkills(options);
+  const importedSkillNames = imports.imported.map(item => item.skill);
   const metadata = syncSkillMetadata(options.rootDir, { apply: options.apply });
-  const links = syncInstalledSkillLinks(options);
-  return { metadata, links };
+  const links = syncInstalledSkillLinks({
+    ...options,
+    plannedRepoSkills: importedSkillNames,
+    forceRelinkSkills: [
+      ...(options.forceRelinkSkills ?? []),
+    ],
+    forceRelinkTargets: [
+      ...(options.forceRelinkTargets ?? []),
+      ...imports.imported.map(item => `${item.environment}/${item.skill}`),
+    ],
+  });
+  return { imports, metadata, links };
 }
