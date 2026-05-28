@@ -1,14 +1,9 @@
 ---
 name: pr-review
 description: Diligent end-of-cycle PR review gate. Read-only — presents findings to the user, never applies fixes. Use after /pr or whenever you want to vet a branch before merge.
-x-devkit-model-tier: highest
-model: best
-effort: xhigh
 ---
 
 # PR Review
-
-Model tier: Use the highest available model and reasoning tier for this skill.
 
 Diligent end-of-cycle review for any PR I authored under the standard workflow:
 
@@ -27,11 +22,23 @@ This skill **presents findings to the user**. It does not fix things.
 - Do NOT delegate fixes to subagents (e.g. don't dispatch git-master, code-reviewer-with-write-tools, or testing-wizard with instructions to "address findings").
 - Subagents spawned during the review (e.g. code-reviewer for parallel audit) are for READING — brief them as analysts, not implementers.
 
-The only writes this skill performs are to scratch files under `/tmp/` (e.g. a findings draft) if needed for organization. Never edit anything inside the working repo.
+The only writes this skill performs are to scratch files under `/tmp/` (the findings files described below). Never edit anything inside the working repo.
 
 After presenting findings, **stop and wait**. The user decides what to fix and explicitly authorizes any subsequent work. "Fix all", "address P1 and P2", "implement the cascade test" in chat is the green light. Silence, "thanks", or "noted" is not.
 
 If the user's invocation message itself contains explicit fix authorization (e.g. `/pr-review and fix anything you find`), you may proceed to fixes after presenting findings — but the default for a bare `/pr-review` invocation is read-only.
+
+## Findings files (append-as-you-go, not write-at-end)
+
+Long reviews truncate at two boundaries: the sub-agent → parent tool-result boundary, and the parent → user message boundary. To survive both, this skill streams findings into `/tmp/` files as it audits. The user-facing Output block is the *last* step, synthesized from those files.
+
+Compute a single timestamp at the start of the run: `TS=$(date -u +%Y%m%dT%H%M%SZ)`. Use it for all three paths below.
+
+- `/tmp/pr-review-<pr#>-<TS>-main.md` — the parent's own audit (steps 6–8). Created and appended-to by the parent.
+- `/tmp/pr-review-<pr#>-<TS>-subagent.md` — the code-reviewer sub-agent's audit. Created and appended-to by the sub-agent via its `OUTPUT_FILE` protocol.
+- `/tmp/pr-review-<pr#>-<TS>-final.md` — the synthesized Output block, written by the parent at step 8 *before* echoing it to chat. Include this path in the chat output so the user can recover the full review if the chat message itself truncates.
+
+Each file uses a fresh timestamp, so prior runs are preserved and can be inspected or resumed.
 
 ## When to invoke
 
@@ -41,14 +48,43 @@ If the user's invocation message itself contains explicit fix authorization (e.g
 
 ## Process
 
+0. Compute the run timestamp: `TS=$(date -u +%Y%m%dT%H%M%SZ)`. Compute the three file paths (`-main.md`, `-subagent.md`, `-final.md`) per "Findings files" above. Create the main file with this canonical skeleton — agents and the resume mechanism rely on the exact section names:
+
+   ```markdown
+   # /pr-review PR #<n> — main audit
+
+   - PR: <owner/repo>#<n> — <title>
+   - Branch: <head ref>
+   - Timestamp: <TS>
+
+   ## Grep gates
+
+   ## Files reviewed
+
+   ## Findings (append as discovered)
+
+   ## Synthesis notes
+   ```
 1. Identify the PR. Read its title, body, and the issue number it closes (`Closes #N` or `gh pr view <pr> --json number,closingIssuesReferences`).
 2. Read the issue body. Find the parent PRD reference (`## Parent PRD` or similar).
 3. Read the PRD body. Note the acceptance criteria, the user stories, the implementation decisions, and the out-of-scope list. The PRD is the contract; the PR is the delivery.
 4. Read the diff in full (`gh pr diff <pr>`). Then read the touched files in full — diffs hide context.
-5. Spawn the **code-reviewer** agent in parallel with steps 6–8 below for code-level audit. Brief it with the PRD scope and ADR-025 §1/§2.
-6. Run grep gates: `grep -rEn 'from "\.\./[^"]*\.service"' src/` outside the owning module's directory must return zero. Service-to-controller cross-module imports must return zero.
-7. Audit specifically for the smells below. Be hostile. The PR is guilty until proven innocent.
-8. Produce findings. Critical or smell findings → fail. Pass only when all findings are addressed or explicitly accepted by the user.
+5. Spawn the **code-reviewer** agent in parallel with steps 6–8 below for code-level audit. The brief MUST include:
+   - The PRD scope and any project-specific architectural constraints relevant to the diff (e.g. controller/service boundary rules if the repo has them).
+   - A literal line `OUTPUT_FILE: /tmp/pr-review-<pr#>-<TS>-subagent.md` so the agent streams findings to disk per its protocol.
+   - An explicit reminder that the agent must return ONLY a short status (path + per-severity counts + verdict), not the findings themselves.
+6. Run any architectural grep gates relevant to the repo (e.g. cross-module service imports for projects with a controller/service split). Append a one-line result for each gate to the `## Grep gates` section of the main file as the gate runs — do not batch.
+7. Audit specifically for the smells below. Be hostile. The PR is guilty until proven innocent. As you open each touched file for review, append its path to `## Files reviewed` *before* auditing it — this is the coverage log the resume mechanism reads. **Append each finding to `## Findings` as it is discovered**, one finding per `Edit` call, in the form `- file:path:line — <category> — <severity> — <note>`. Do not hold findings in conversational memory and dump them at the end.
+8. Produce findings. Read both the main file and the sub-agent file from disk. Synthesize the user-facing Output block (see "Output" below) and write it to the `-final.md` file *before* echoing it to chat — that file is the durable artifact if the chat-side message truncates. Critical or smell findings → fail. Pass only when all findings are addressed or explicitly accepted by the user.
+
+### Resuming an interrupted review
+
+If a prior `/pr-review` run was killed mid-flight, its partial `/tmp/pr-review-<pr#>-<TS>-main.md` and possibly `-subagent.md` are still on disk. To resume:
+
+- The user pastes the partial file path (or just the `<pr#>-<TS>` stem) back into chat with an instruction like "resume from this".
+- Read the partial file. Use the `## Files reviewed` section as the coverage log — files listed there have been audited (clean audits leave findings empty but the path still appears). Continue with files not on that list, appending to the *same* file. Do not start a new timestamped run — that would orphan the partial work.
+- The `## Files reviewed` log is best-effort: if the previous run crashed mid-file (path logged but audit not finished), re-auditing that file on resume is cheap insurance. Prefer redundant work over missed coverage.
+- The sub-agent can be resumed the same way: pass the existing `-subagent.md` path as `OUTPUT_FILE:` and instruct it to read what's already there and continue.
 
 ## Smells to find
 
@@ -87,8 +123,12 @@ A `// TODO(#NN)` is sometimes legitimate. Verify the linked issue exists, has a 
 
 ## Output
 
+Write the block below to `/tmp/pr-review-<pr#>-<TS>-final.md` first, then echo it to chat. End the chat message with a line `Full review: /tmp/pr-review-<pr#>-<TS>-final.md` so the user can recover the unabridged version if the chat-side message truncates.
+
 ```
-PR #<n> — /pr-review
+PR #<n> — Review
+
+(Do not include any leading slash-command token like `/pr-review` in this output. The user pastes review output back into other sessions and a leading slash would be re-interpreted as a skill invocation.)
 
 Verdict: PASS | FAIL
 
