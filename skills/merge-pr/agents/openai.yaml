@@ -1,4 +1,4 @@
 interface:
   display_name: "Merge PR"
-  short_description: "Merge a PR to main with the full pre/post-merge gate (CI check, post-merge migrate+seed if needed, Cloud Build wait, deployed e2e)."
-  default_prompt: "Use the /merge-pr skill: Merge a PR to main with the full pre/post-merge gate (CI check, post-merge migrate+seed if needed, Cloud Build wait, deployed e2e)."
+  short_description: "Merge a PR to main with the full pre/post-merge gate (CI check, post-merge migrate+seed if needed, deploy wait, deployed smoke/e2e)."
+  default_prompt: "Use the /merge-pr skill: Merge a PR to main with the full pre/post-merge gate (CI check, post-merge migrate+seed if needed, deploy wait, deployed smoke/e2e)."

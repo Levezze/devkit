@@ -1,6 +1,6 @@
 ---
 name: merge-pr
-description: Merge a PR to main with the full pre/post-merge gate (CI check, post-merge migrate+seed if needed, Cloud Build wait, deployed e2e). Pass --production to forward-merge main→production with extra prod-specific checks.
+description: Merge a PR to main with the full pre/post-merge gate (CI check, post-merge migrate+seed if needed, deploy wait, deployed smoke/e2e). Pass --production to forward-merge main→production with extra prod-specific checks. Repo-agnostic — detects stack from project files.
 ---
 
 Run the full merge-and-promote gate for a PR. Two modes:
@@ -8,13 +8,26 @@ Run the full merge-and-promote gate for a PR. Two modes:
 - **Default (target = main)**: standard merge-to-main with post-merge verification.
 - **`--production`**: append a `main` → `production` forward-merge after the standard merge, with prod-specific checks.
 
-Never invent your own merge sequence or skip steps "because it's a small change." The whole point of this skill is that every step is non-negotiable until proven otherwise.
+Never invent your own merge sequence or skip steps "because it's a small change." Every gate is non-negotiable until proven otherwise. **Skip a step only when you can name the specific reason it doesn't apply in this repo** (no CI configured, no migrations dir, no deploy infra, etc.) — and say so explicitly in the report. "Looks like it doesn't apply" is not a reason; "this repo has no `.github/workflows`, so no CI gate" is.
 
-## Scope
+## Repo-agnostic stack detection
 
-This skill encodes the AevArk/mvp-api merge workflow. The specifics — Prisma migrate + seed commands, Cloud Build region sweep, Hono `/health` endpoint, the `pnpm test:e2e:deployed` / `:prod` harness, the `git merge --no-ff` forward-merge promotion model — are mvp-api conventions. For other repos, follow the same gate **structure** (CI check → confirm → merge → wait-for-deploy → e2e → optional prod promote) but substitute the repo's equivalent commands. If you find yourself reaching for this skill in a non-mvp-api repo and ~half the steps don't apply, stop and ask the user whether they want a generalized variant rather than improvising.
+Before doing anything, sniff the repo to know which commands map to which gates. Read these in parallel at the start of every invocation:
 
-The `--production` flow additionally requires the Clerk-JWT auth path in mvp-api's e2e harness (added in AevArk/mvp-api PR #489). Until that PR has landed on `main`, step 16 will hit the dev-bypass auth on prod and 401 every call.
+| Concern | Detect | Examples |
+|---|---|---|
+| Package manager / lang | Project root files | `package.json` (+ `pnpm-lock.yaml` / `yarn.lock` / `package-lock.json` / `bun.lockb`), `pyproject.toml` (+ `uv.lock` / `poetry.lock`), `Cargo.toml`, `go.mod`, `Gemfile`, `composer.json`, `mix.exs` |
+| Task runner | Convention | `Makefile` (`make X`), npm scripts (`pnpm X` / `npm run X`), `uv run X`, `cargo X`, `just`, `task` |
+| CI | `.github/workflows/*.yml`, `.gitlab-ci.yml`, `.circleci/config.yml`, `Jenkinsfile`, BuildKite, etc. |
+| Migrations | `prisma/migrations/`, `alembic/versions/`, `db/migrate/`, `migrations/`, `drizzle/migrations/`, `internal/db/migrations/`, Rails `db/migrate/` |
+| Seeds | `prisma/seed*.ts` + `prisma/data/`, `seeds/` dir, `make seed` target, `pnpm db:seed`, `rake db:seed`, Django fixtures |
+| Local prod-build path | `next build`, `vite build`, `astro build`, `cargo build --release`, `Dockerfile`, `tsc -p tsconfig.json` |
+| Deploy infra | Cloud Build (GCP), Vercel, Netlify, Fly, GitHub Actions deploy job, Render, Railway, ECS, K8s manifests |
+| Health endpoint | App-level convention: `/health`, `/healthz`, `/_health`, `/ping`, FastAPI `/docs`, Rails `/up` |
+| E2E | `make test-e2e`, `pnpm test:e2e:deployed`, `pytest -m e2e`, `playwright test`, `cypress run` |
+| Project docs | `CLAUDE.md`, `AGENTS.md`, `README.md`, `CONTRIBUTING.md` — read these first for any merge/deploy override |
+
+**Project docs win over defaults.** If `CLAUDE.md` says "deploy auto-runs on merge to main; check Cloud Build in europe-west1" or "no e2e exists, run `make smoke` instead" or "production migrations need `PROD_CONFIRM=yes` env var" — those override the generic defaults below. Read them before running any command in this skill.
 
 ## Invocation forms
 
@@ -27,46 +40,69 @@ The `--production` flow additionally requires the Clerk-JWT auth path in mvp-api
 
 1. **Resolve PR number.** From args if passed, otherwise from current branch via `gh pr view --json number,baseRefName,headRefName`. If no PR found, stop and explain.
 
-2. **Verify PR base is `main`.** `gh pr view <N> --json baseRefName`. If base is `production` (or anything else), STOP. Explain to the user that PRs to `production` are forbidden by the project's git workflow (forward-merge only). Do not proceed without explicit override.
+2. **Verify PR base is `main`** (or the repo's primary branch — check `gh repo view --json defaultBranchRef`). If base is `production`, `prod`, a release branch, or anything else not the default, STOP. Explain to the user that PRs to non-default branches are forbidden by the standard workflow (forward-merge or release branch). Do not proceed without explicit override.
 
 3. **Verify CI is green on the PR's head SHA.** `gh run list --repo <owner>/<repo> --branch <head-branch> --limit 5`. Confirm the latest run for the PR's head SHA is SUCCESS. If red:
    - Stop, surface the failed checks, and require the user to type an explicit authorization out loud (e.g. "merge red, I authorize"). Quote their authorization back to confirm. No implicit approval, no default-mode auto-confirm.
    - Local verification is NOT a substitute for the GH Actions result. Green local + red CI = stop.
+   - **If the repo has no CI configured at all** (`statusCheckRollup: []`, empty `gh run list`, no `.github/workflows/` or other CI config), say so explicitly to the user and require explicit authorization to proceed on local verification alone. Don't silently treat "no CI" as "CI passed."
 
-4. **Confirm with the user**: "Merge PR #N to main?" Wait for explicit yes. Don't proceed on assumption.
+4. **Local production-build gate (when applicable).** Some repos exercise their production-build path ONLY at deploy time. Tests + typecheck + lint do NOT cover this path — Server Component constraints, route static analysis, image optimization, env-var binding, bundler config can all fail at build time without tripping any other gate.
+   - Detect: build script in `package.json` and a framework that has a distinct prod build path (`next`, `vite`, `astro`, `remix`, `nuxt`, `sveltekit`); or a `Dockerfile` whose RUN steps include a build; or `cargo build --release`. Repo's `CLAUDE.md` may pin a specific command.
+   - If detected: run the build (`pnpm build`, `npm run build`, `cargo build --release`, `docker build .`, or the repo's exact command) before step 6.
+   - Skip when n/a: backend services where the "build" is `tsc` (already covered by typecheck), Python services without a bundling step, pure library repos that publish via CI, or repos where the deploy gate IS the remote build AND the remote build's logs are checked separately at step 9. **State the reason for the skip explicitly** ("Python service, no bundle step" / "Docker build runs in Cloud Build at step 9").
+   - If local build fails: stop. The remote build will fail identically. Fix locally, push to the PR branch, restart the gate from step 3.
 
-5. **Merge.** Default to `gh pr merge <N> --squash`. Only deviate if the repo's `CLAUDE.md` explicitly mandates a different strategy (e.g. `--merge` for preserving multi-commit history on long branches). NEVER pass `--no-verify` or hook-skip flags. If the user has overridden the strategy in the current conversation, honor that; otherwise squash.
+5. **Confirm with the user**: "Merge PR #N to main?" Wait for explicit yes. Don't proceed on assumption. If the invocation message itself contains broad authorization ("yes to all", "go", "merge it"), honor it for steps that don't involve destructive prod actions; still STOP at any step that requires `--production` or destructive-migration prompts (see Mode B).
 
-6. **Checkout main and pull.** `git checkout main && git pull`.
+6. **Merge.** Default to `gh pr merge <N> --squash`. Only deviate if the repo's `CLAUDE.md` explicitly mandates a different strategy (e.g. `--merge` for preserving multi-commit history on long branches, or `--rebase` for linear-history repos). NEVER pass `--no-verify` or hook-skip flags. If the user has overridden the strategy in the current conversation, honor that; otherwise squash.
 
-7. **Detect post-merge work.**
-   - **Migration**: if PR added files under `prisma/migrations/`, run `pnpm migrate:deploy:dev` (or the project's equivalent for the dev/staging Neon branch).
-   - **Seed**: if PR edited `prisma/data/**`, `prisma/seed*.ts`, or `prisma/seed-shared/**`, run `pnpm dlx prisma db seed -- --deployed` (or project equivalent). The `--` delimiter forwards args.
+7. **Checkout main (or default branch) and pull.** `git checkout <default> && git pull`.
 
-8. **Wait for Cloud Build to finish.** Merging to `main` triggers a Cloud Run redeploy. Running the deployed e2e against the old revision tests nothing.
-   - GCP assigns Cloud Build jobs to **random regions**. Check ALL of them, every time, until you find the new build:
+8. **Detect post-merge work.**
+
+   The PR's diff is the source of truth. `gh pr diff <N> --name-only` then map paths to actions:
+
+   - **Migration files** added: run the repo's "apply migrations" command against the dev/staging DB (NOT production; that's Mode B step 15). Examples:
+     - Prisma: `pnpm migrate:deploy:dev` or `pnpm prisma migrate deploy`
+     - Alembic: `make migrate DEPLOY=1` (or whatever the repo's `make migrate` target is, with the env that targets dev)
+     - Rails: `rake db:migrate RAILS_ENV=staging`
+     - golang-migrate / sqlx / drizzle: repo-specific.
+   - **Seed files** edited: run the repo's seed command against the dev/staging DB, if and only if the seed is intended to re-apply on every deploy. Some repos re-seed only on schema reset — read `CLAUDE.md` or the seed script's docstring. Examples:
+     - Prisma: `pnpm dlx prisma db seed -- --deployed`
+     - Repo Makefile: `make seed DEPLOY=1`
+   - **Migration ordering matters.** If the deployed code is incompatible with the OLD schema, run the migration BEFORE the deploy completes. If it's compatible (additive change), order is less load-bearing but still prefer migrate-first. If the repo's `CLAUDE.md` documents an ordering rule, follow it verbatim. When in doubt, surface to user and ask.
+
+9. **Wait for deploy to finish.** Merging triggers a redeploy on most repos. Running deployed e2e against the old revision tests nothing. The deploy infra varies:
+
+   - **Cloud Build / Cloud Run (GCP)**: GCP assigns Cloud Build jobs to random regions. Check ALL of them every time:
      ```bash
      for region in us-east1 us-central1 us-west1 europe-west1 asia-east1 global; do
        echo "=== $region ===" && gcloud builds list --limit=3 --region=$region --format="table(id,status,startTime,tags)" 2>&1
      done
      ```
-   - Wait for WORKING → SUCCESS. Don't proceed on QUEUED or WORKING.
-   - If the build FAILED, stop. Surface the failure ID and ask the user.
+     Wait for WORKING → SUCCESS. If FAILED, stop and surface.
+   - **GitHub Actions deploy job**: `gh run list --workflow=deploy.yml --limit=3` against the merge SHA. Wait for `completed/success`.
+   - **Vercel / Netlify / Fly / Render**: provider CLI (`vercel inspect`, `netlify status`, `fly status`, `render services list`) or wait for the GitHub deployment status (`gh api repos/<owner>/<repo>/deployments?ref=<sha>`).
+   - **No deploy infra detected**: state that explicitly and skip to step 10.
 
-9. **Restart dev server, then run deployed e2e.**
-   - `pnpm kill && pnpm dev` (background). NEVER skip this — `tsx watch` is flaky on Hono route changes and a stale dev server silently runs old code.
-   - Poll `/health` (no `/v1` prefix) until 200.
-   - `pnpm test:e2e:deployed` — must be green. If red, stop and report.
+   If the deploy is QUEUED / pending for >10 min, surface to the user — don't silently keep polling.
 
-10. **Final state.** Kill dev server (`pnpm kill`). Confirm working dir is on `main`. Report the merge SHA, the Cloud Build ID, and the deployed-e2e summary.
+10. **Run deployed smoke / e2e against the new revision.**
+
+    - **Smoke** (always, if a deployed URL exists): hit the repo's health endpoint until 200. Detection order: `CLAUDE.md` override → `/health` → `/healthz` → `/ping` → FastAPI `/docs` → root `/`. Confirm the response body or status indicates the new revision is live (e.g. version string, build SHA, `env: <expected>`).
+    - **E2E** (if a deployed e2e harness exists): run it. Detection: `make test-e2e` / `make e2e` target, `pnpm test:e2e:deployed` script, `pytest tests/e2e`, `playwright test --config=e2e.deployed.config.ts`. **State of dev server**: if the e2e harness expects a local dev server, restart it cleanly first (`pnpm kill && pnpm dev` or equivalent) — stale dev servers run old code on hot-reload frameworks (tsx watch, Next dev) and produce false greens.
+    - If no e2e harness exists, smoke is the gate. Say so explicitly: "no e2e harness configured, smoke = `curl /health` = OK".
+
+11. **Final state.** Kill any background dev server. **Confirm working dir is on the default branch** (`git rev-parse --abbrev-ref HEAD`). Report the merge SHA, the deploy ID (Cloud Build / Actions run / Vercel deployment), and the smoke/e2e result.
 
 ## Mode B — `--production` adds a forward-merge
 
-After Mode A's step 10 completes successfully, perform the forward-merge:
+After Mode A's step 11 completes successfully, perform the forward-merge:
 
-11. **Prompt for prod authorization.** Required phrasing: "merge `main` → `production`? This is a live production promotion." Wait for the user to type an explicit `yes` (lowercase, exact). Do NOT accept "y", "ok", "go", "sure". If they type anything other than `yes`, abort and stay on `main`.
+12. **Prompt for prod authorization.** Required phrasing: "merge `main` → `production`? This is a live production promotion." Wait for the user to type an explicit `yes` (lowercase, exact). Do NOT accept "y", "ok", "go", "sure". If they type anything other than `yes`, abort and stay on `main`.
 
-12. **Forward-merge.** Production promotions are NEVER done via PR. Forward-merge only:
+13. **Forward-merge.** Production promotions are NEVER done via PR. Forward-merge only:
     ```bash
     git checkout production && git pull
     git merge --no-ff main -m "Merge main into production"
@@ -74,40 +110,47 @@ After Mode A's step 10 completes successfully, perform the forward-merge:
     ```
     `--no-ff` preserves the merge commit; the first-parent chain stays clean.
 
-13. **Wait for production Cloud Build.** Same all-regions check as step 8. The production trigger may be in `europe-west1` (Developer Connect) while the `main` trigger is `global` — never assume. Wait for SUCCESS before proceeding.
+    If the repo uses a different prod-promotion convention (release tag, branch named `release`, etc.), follow `CLAUDE.md` — but the default is `production` branch + forward-merge.
 
-14. **Apply prod migrations if any.** If the PR added migration files, run the prod migrate script. It will require explicit confirmation:
-    - Interactive: `pnpm migrate:deploy:prod` (prompts; type `yes`).
-    - CI / non-TTY: prepend `PROD_CONFIRM=yes` if and only if the user has authorized unattended prod migrations in this conversation.
+14. **Wait for production deploy.** Same shape as step 9, against the prod trigger / environment. Wait for SUCCESS.
 
-15. **Apply prod seed if any.** If the PR edited prod-affecting seed data, run `pnpm dlx prisma db seed -- --prod` (interactive) or `PROD_CONFIRM=yes pnpm dlx prisma db seed -- --prod` (CI).
+15. **Apply prod migrations if any.** If the PR added migration files, run the repo's prod migrate command. It MUST require explicit confirmation (interactive prompt OR an env-var gate like `PROD_CONFIRM=yes`). Examples:
+    - Prisma + `pnpm migrate:deploy:prod` (interactive prompt)
+    - Alembic + repo-specific `make migrate DEPLOY=1 PROD=1` (or whatever the repo encodes)
+    - `PROD_CONFIRM=yes <cmd>` for non-TTY contexts — only if the user authorized unattended prod migrations in this conversation.
 
-16. **Run prod e2e.** `pnpm test:e2e:prod` (or `PROD_CONFIRM=yes pnpm test:e2e:prod` for CI). This authenticates via real Clerk session JWTs and exercises the full surface against live prod. Must be green. If red, the promotion has already shipped to prod — alert the user immediately and surface the failures; do NOT attempt to revert silently.
+    **If the migration is destructive** (column drops, type changes that could fail on existing data, NOT NULL on a populated column, table renames): prompt the user explicitly with "This migration is destructive. Confirm you've coordinated a deploy window and have a recent backup. Type 'destructive ok' to proceed." Don't accept generic `yes`.
 
-17. **Prod smoke.** `curl <prod URL>/health` — confirm HTTP 200 and `env: production` in the response body. Confirm at least one endpoint is reachable through the auth gate (e.g. `/v1/questionnaire/types` should return 401, not 500).
+16. **Apply prod seed if any.** Same shape as step 15.
 
-18. **Return to `main`.** `git checkout main`. NEVER leave the working directory on `production`. If you do, future commits in this session may accidentally land on prod.
+17. **Run prod e2e** (if the harness supports a prod target). This is the only gate that catches prod-only wiring bugs (real auth tokens, real provider webhooks, real env binding). If red, the promotion has already shipped — alert the user immediately and surface the failures; do NOT attempt to revert silently.
 
-19. **Final report.** Summarize: merge commit SHA on `main`, merge commit SHA on `production`, both Cloud Build IDs, prod migration ID if applied, e2e result.
+18. **Prod smoke.** Hit the prod health endpoint. Confirm HTTP 200 and the response indicates `env: production` (or equivalent). Confirm at least one gated endpoint behaves correctly under the prod auth layer (e.g. returns 401, not 500 — meaning the auth code is wired, not crashed).
+
+19. **Return to default branch.** `git checkout main` (or whichever is default). NEVER leave the working directory on `production`. If you do, future commits in this session may accidentally land on prod.
+
+20. **Final report.** Summarize: merge SHA on main, merge SHA on production, both deploy IDs, prod migration ID if applied, e2e/smoke result.
 
 ## Anti-patterns (do not do these)
 
 - Do not merge a PR with red CI without explicit, quoted-back user authorization.
-- Do not assume the Cloud Build region — always sweep all of them.
-- Do not merge a PR whose base is `production` or any non-`main` branch.
-- Do not `git push --force` to `main` or `production`. Never. Not even to "fix" something.
-- Do not run prod migrations or prod seeds without either an interactive `yes` prompt or `PROD_CONFIRM=yes` from a user-authorized invocation.
-- Do not skip the `pnpm kill && pnpm dev` cycle before any e2e — stale servers run old code and produce false greens.
+- Do not assume which region / queue / dashboard the deploy lives in — sweep or query, never guess.
+- Do not merge a PR whose base is anything other than the repo's default branch (without explicit override).
+- Do not `git push --force` to `main`, the default branch, or `production`. Never. Not even to "fix" something.
+- Do not run prod migrations or prod seeds without either an interactive `yes` prompt or an authorized non-interactive env gate.
+- Do not skip the dev-server restart cycle before any e2e on hot-reload frameworks — stale servers run old code and produce false greens.
 - Do not promote to `production` via PR. Forward-merge only.
-- Do not skip the prod e2e step because "it just takes too long". The prod e2e is the only gate that catches Clerk JWT lifetime issues, Stripe webhook divergence, and prod-only env wiring bugs.
-- Do not leave the working directory on `production` after a promotion. Always `git checkout main` before reporting done.
-- Do not run `--production` without first having completed the deployed-e2e step from Mode A. The skill enforces this ordering for a reason: the deployed e2e catches issues against the same code as prod *before* it ships to prod.
+- Do not skip the prod e2e step because "it just takes too long". The prod e2e is the only gate that catches prod-only wiring bugs.
+- Do not leave the working directory on `production` after a promotion. Always check out the default branch before reporting done.
+- Do not run `--production` without first having completed the deployed-e2e/smoke step from Mode A. The skill enforces this ordering for a reason: catch issues against the same code as prod *before* it ships to prod.
+- Do not invent commands. If you don't know the repo's migrate / seed / e2e command, stop and ask.
 
 ## Edge cases
 
-- **PR base isn't main**: stop. Tell the user "PRs to non-main branches are forbidden by repo policy. To direct-merge to production, the user must explicitly state in the conversation 'yes, merge PR #N directly to production' and you must quote it back for confirmation."
+- **PR base isn't default**: stop. Tell the user "PRs to non-default branches are forbidden by repo policy. To direct-merge to production, the user must explicitly state in the conversation 'yes, merge PR #N directly to production' and you must quote it back for confirmation."
 - **No PR found for current branch**: ask the user for the PR number. Don't guess from the branch name.
-- **Cloud Build is QUEUED for >10 min**: surface to the user. Don't silently keep polling; the user may want to investigate (quota, trigger misconfig, etc.).
-- **Migration is destructive (column drops, type changes)**: prompt the user explicitly: "This migration is destructive. Confirm you've coordinated a deploy window and have a recent backup. Type 'destructive ok' to proceed." Don't accept generic `yes`.
-- **Prod e2e gates on `PROD_CONFIRM=yes` env var**: the harness honors this; CI invocations pass it. Interactive invocations type `yes` at the prompt. Don't set `PROD_CONFIRM=yes` from within the skill unless the user authorized it in the current conversation.
-- **`.env.production` missing or incomplete**: surface to the user before running anything that needs it. Do not patch missing values; the source of truth is GCP Secret Manager and the env file should mirror it.
+- **Deploy is QUEUED for >10 min**: surface to the user. Don't silently keep polling; the user may want to investigate (quota, trigger misconfig, etc.).
+- **Migration is destructive (column drops, type changes)**: prompt the user explicitly per step 15 wording.
+- **`.env.production` / prod credentials file missing or incomplete**: surface to the user before running anything that needs it. Do not patch missing values; the source of truth is the prod secret manager (GCP Secret Manager, AWS Secrets Manager, Vercel env vars, etc.).
+- **Repo has no `gh` remote configured**: every step that uses `gh` falls back to whatever the repo's actual workflow is (manual merge via web UI, GitLab `glab`, BitBucket `bb`). Surface and ask; don't invent.
+- **Repo has no CLAUDE.md**: still run the skill, but state the assumptions you're making about migrate / seed / e2e commands and ask for confirmation before running them.

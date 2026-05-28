@@ -111,20 +111,23 @@ import('$REPO_ROOT/src/packages.js').then(m => {
 " || fail "dynamic skill package discovery failed"
 node -e "
 import('$REPO_ROOT/src/skill-sync.js').then(m => {
+  // pr-review and fix-pr-review are deliberately pinned to Sonnet 4.6 to control
+  // plan-quota burn — review and review-fix workloads are high-volume pattern matching
+  // where Sonnet is sufficient. Do not raise these back to Opus without checking weekly usage.
   for (const skill of ['pr-review', 'fix-pr-review']) {
     const metadata = m.readSkillMetadata('$REPO_ROOT', skill);
-    if (metadata.modelTier !== 'highest') {
-      throw new Error(skill + ' should request highest model tier');
+    if (metadata.modelTier) {
+      throw new Error(skill + ' should NOT set x-devkit-model-tier (pinned to Sonnet to control quota)');
     }
-    if (metadata.model !== 'best') {
-      throw new Error(skill + ' should use Claude Code model: best');
+    if (metadata.model !== 'claude-sonnet-4-6') {
+      throw new Error(skill + ' should use Claude Code model: claude-sonnet-4-6');
     }
-    if (metadata.effort !== 'xhigh') {
-      throw new Error(skill + ' should use Claude Code effort: xhigh');
+    if (metadata.effort !== 'high') {
+      throw new Error(skill + ' should use Claude Code effort: high');
     }
   }
 });
-" || fail "highest-tier skill metadata missing"
+" || fail "Sonnet-pinned skill metadata missing"
 SYNC_HOME="$SANDBOX/sync-home"
 node -e "
 import('$REPO_ROOT/src/skill-sync.js').then(m => {
@@ -146,6 +149,57 @@ import('$REPO_ROOT/src/skill-sync.js').then(m => {
   }
 });
 " || fail "selected-environment sync failed"
+IMPORT_ROOT="$SANDBOX/import-root"
+IMPORT_HOME="$SANDBOX/import-home"
+mkdir -p "$IMPORT_ROOT/skills" "$IMPORT_HOME/.claude/skills/imported-skill"
+cat > "$IMPORT_HOME/.claude/skills/imported-skill/SKILL.md" <<'EOF'
+---
+name: imported-skill
+description: Imported skill summary sentence. Extra details should not be part of the generated summary.
+---
+
+# Imported Skill
+EOF
+node -e "
+import('$REPO_ROOT/src/skill-sync.js').then(m => {
+  const fs = require('fs');
+  const dryRun = m.syncAllSkills({
+    rootDir: '$IMPORT_ROOT',
+    homeDir: '$IMPORT_HOME',
+    apply: false,
+    environments: ['claude', 'codex'],
+    forceImports: ['imported-skill'],
+  });
+  if (!dryRun.imports.imported.some(item => item.skill === 'imported-skill')) {
+    throw new Error('dry run did not report forced import');
+  }
+  if (fs.existsSync('$IMPORT_ROOT/skills/imported-skill')) {
+    throw new Error('dry run copied imported skill');
+  }
+  const result = m.syncAllSkills({
+    rootDir: '$IMPORT_ROOT',
+    homeDir: '$IMPORT_HOME',
+    apply: true,
+    environments: ['claude', 'codex'],
+    forceImports: ['claude/imported-skill'],
+  });
+  if (!result.imports.imported.some(item => item.environment === 'claude' && item.skill === 'imported-skill')) {
+    throw new Error('forced import did not report imported skill');
+  }
+  if (!fs.existsSync('$IMPORT_ROOT/skills/imported-skill/SKILL.md')) {
+    throw new Error('forced import did not copy SKILL.md into devkit');
+  }
+  if (!fs.existsSync('$IMPORT_ROOT/skills/imported-skill/agents/openai.yaml')) {
+    throw new Error('forced import did not generate Codex metadata');
+  }
+  if (!fs.lstatSync('$IMPORT_HOME/.claude/skills/imported-skill').isSymbolicLink()) {
+    throw new Error('forced import did not replace source directory with symlink');
+  }
+  if (!fs.lstatSync('$IMPORT_HOME/.codex/skills/imported-skill').isSymbolicLink()) {
+    throw new Error('forced import did not link imported skill into Codex');
+  }
+});
+" || fail "forced external skill import failed"
 pass "new skills are discovered and Codex metadata is generated"
 
 echo
