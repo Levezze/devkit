@@ -1,14 +1,13 @@
 ---
 name: fix-pr-review
 description: Reconcile and apply fixes from one or more external PR reviews plus my own /pr-review output. Scrutinizes findings, voices pushback only when warranted, applies the rest end-to-end (edits → build → test → commit → push).
-x-devkit-model-tier: highest
-model: best
-effort: xhigh
+model: claude-sonnet-4-6
+effort: high
 ---
 
 # Fix PR Review
 
-Model tier: Use the highest available model and reasoning tier for this skill.
+Model tier: Sonnet 4.6 at high reasoning effort. Pinned away from Opus to control plan-quota burn — applying review fixes is a mechanical edit/build/test loop that does not need Opus reasoning.
 
 Companion to `/pr-review`. After I've run `/pr-review` myself and pasted back one or more **external** PR reviews (Codex, another Claude, a human reviewer's structured comment block), this skill reconciles all reviews, applies the fixes, and pushes the updated branch.
 
@@ -126,7 +125,9 @@ Push the new commit(s) to the remote tracking branch. This updates the open PR. 
 After push, output a one-block summary:
 
 ```
-/fix-pr-review — PR #<n>
+PR #<n> — Fix-Review summary
+
+(Do not include any leading slash-command token like `/fix-pr-review` in this output. The user pastes summary output back into other sessions and a leading slash would be re-interpreted as a skill invocation.)
 
 Reviews reconciled: <N>  (<sources>)
 Findings: <total> — applied <a> / pushed back <p> / skipped per user <s>
