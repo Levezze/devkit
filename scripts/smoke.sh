@@ -174,6 +174,9 @@ import('$REPO_ROOT/src/skill-sync.js').then(m => {
   if (fs.existsSync('$IMPORT_ROOT/skills/imported-skill')) {
     throw new Error('dry run copied imported skill');
   }
+  if (fs.lstatSync('$IMPORT_HOME/.claude/skills/imported-skill').isSymbolicLink()) {
+    throw new Error('dry run replaced source dir with a symlink');
+  }
   const result = m.syncAllSkills({
     rootDir: '$IMPORT_ROOT',
     homeDir: '$IMPORT_HOME',
@@ -195,6 +198,15 @@ import('$REPO_ROOT/src/skill-sync.js').then(m => {
   }
   if (!fs.lstatSync('$IMPORT_HOME/.codex/skills/imported-skill').isSymbolicLink()) {
     throw new Error('forced import did not link imported skill into Codex');
+  }
+  // The point of import is no divergent copy: both env symlinks must resolve to the
+  // devkit copy, not back to the original source. isSymbolicLink alone does not prove this.
+  const expectedTarget = fs.realpathSync('$IMPORT_ROOT/skills/imported-skill');
+  if (fs.realpathSync('$IMPORT_HOME/.claude/skills/imported-skill') !== expectedTarget) {
+    throw new Error('claude symlink does not resolve to the devkit copy');
+  }
+  if (fs.realpathSync('$IMPORT_HOME/.codex/skills/imported-skill') !== expectedTarget) {
+    throw new Error('codex symlink does not resolve to the devkit copy');
   }
 });
 " || fail "forced external skill import failed"
