@@ -248,6 +248,11 @@ export function syncSkillMetadata(rootDir = ROOT_DIR, { apply = false } = {}) {
   return result;
 }
 
+// NOTE: call this via syncAllSkills, not standalone. With apply:true it copies the
+// skill into devkit/skills but does NOT replace the source env dir with a symlink —
+// that swap is done by syncInstalledSkillLinks using the forceRelinkTargets that
+// syncAllSkills wires up from this function's result. Calling it on its own leaves a
+// divergent real copy in both devkit and the source env.
 export function importExternalSkills({
   rootDir = ROOT_DIR,
   homeDir = process.env.HOME,
@@ -313,6 +318,10 @@ export function importExternalSkills({
       continue;
     }
 
+    // Dedup duplicate selectors (e.g. ['foo', 'foo']) in both dry-run and apply so
+    // the dry-run report matches what apply would actually do.
+    repoSkills.add(skillName);
+
     if (apply) {
       try {
         fs.mkdirSync(path.dirname(destPath), { recursive: true });
@@ -324,7 +333,6 @@ export function importExternalSkills({
         });
         continue;
       }
-      repoSkills.add(skillName);
     }
 
     result.imported.push({
@@ -397,10 +405,24 @@ export function syncInstalledSkillLinks({
         } else {
           if (forceRelinkSet.has(skillName) || forceRelinkTargetSet.has(`${environment}/${skillName}`)) {
             if (apply) {
+              // Move the real dir aside before symlinking instead of rm-then-symlink:
+              // if symlinkSync throws after an rmSync the env would lose the directory
+              // entirely (orphaned — devkit has the copy, the env has nothing). Renaming
+              // aside lets us restore on failure so a partial relink never destroys data.
+              const backupPath = `${destPath}.relink-bak`;
               try {
-                fs.rmSync(destPath, { recursive: true, force: true });
+                fs.rmSync(backupPath, { recursive: true, force: true });
+                fs.renameSync(destPath, backupPath);
                 fs.symlinkSync(srcPath, destPath);
+                fs.rmSync(backupPath, { recursive: true, force: true });
               } catch (error) {
+                if (!exists(destPath) && exists(backupPath)) {
+                  try {
+                    fs.renameSync(backupPath, destPath);
+                  } catch {
+                    // leave the backup in place for manual recovery
+                  }
+                }
                 result.bigGaps.push({
                   environment,
                   skill: skillName,
