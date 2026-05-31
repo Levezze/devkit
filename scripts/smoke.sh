@@ -289,21 +289,26 @@ IGNORE_ROOT="$SANDBOX/ignore-root"
 IGNORE_HOME="$SANDBOX/ignore-home"
 mkdir -p "$IGNORE_ROOT/skills" \
   "$IGNORE_HOME/.claude/skills/external-keep" \
+  "$IGNORE_HOME/.claude/skills/inline-keep" \
   "$IGNORE_HOME/.claude/skills/scoped-keep" \
   "$IGNORE_HOME/.claude/skills/external-flag"
 cat > "$IGNORE_ROOT/sync-skills.ignore" <<'EOF'
 # personal ignores — never committed
 external-keep
+inline-keep   # trailing comment should be stripped
 
 # scoped form should also work
 claude/scoped-keep
 EOF
+# A malformed ignore file must never tank sync: point readIgnoreList at a directory.
+mkdir -p "$IGNORE_ROOT/bad-ignore-root/sync-skills.ignore"
 node -e "
 import('$REPO_ROOT/src/skill-sync.js').then(m => {
   const ignored = m.readIgnoreList('$IGNORE_ROOT');
   if (!ignored.includes('external-keep')) throw new Error('readIgnoreList dropped bare entry');
+  if (!ignored.includes('inline-keep')) throw new Error('readIgnoreList did not strip trailing inline comment');
   if (!ignored.includes('claude/scoped-keep')) throw new Error('readIgnoreList dropped scoped entry');
-  if (ignored.some(e => e.startsWith('#') || e === '')) throw new Error('readIgnoreList kept a comment/blank line');
+  if (ignored.some(e => e.startsWith('#') || e === '' || e.includes('#'))) throw new Error('readIgnoreList kept a comment/blank line');
   const result = m.syncInstalledSkillLinks({
     rootDir: '$IGNORE_ROOT',
     homeDir: '$IGNORE_HOME',
@@ -313,11 +318,29 @@ import('$REPO_ROOT/src/skill-sync.js').then(m => {
   });
   const gaps = result.bigGaps.map(g => g.skill);
   if (gaps.includes('external-keep')) throw new Error('bare-name ignore did not suppress bigGap');
+  if (gaps.includes('inline-keep')) throw new Error('inline-comment entry did not suppress bigGap');
   if (gaps.includes('scoped-keep')) throw new Error('scoped ignore did not suppress bigGap');
   if (!gaps.includes('external-flag')) throw new Error('non-ignored external skill should still be flagged');
-  // readIgnoreList must be a silent no-op when the file is absent
+  // End-to-end through syncAllSkills: locks the ...options spread-forwarding of ignoredSkills
+  // (sibling force* params are explicitly reconstructed, so the spread is a fragile seam).
+  const viaAll = m.syncAllSkills({
+    rootDir: '$IGNORE_ROOT',
+    homeDir: '$IGNORE_HOME',
+    apply: false,
+    environments: ['claude'],
+    ignoredSkills: ignored,
+  });
+  const allGaps = viaAll.links.bigGaps.map(g => g.skill);
+  if (allGaps.includes('external-keep') || allGaps.includes('scoped-keep')) {
+    throw new Error('syncAllSkills did not forward ignoredSkills to syncInstalledSkillLinks');
+  }
+  if (!allGaps.includes('external-flag')) throw new Error('syncAllSkills dropped a non-ignored gap');
+  // readIgnoreList must be a silent no-op when the file is absent...
   const none = m.readIgnoreList('$SANDBOX/does-not-exist');
   if (!Array.isArray(none) || none.length !== 0) throw new Error('readIgnoreList should return [] when file is absent');
+  // ...and when the file is unreadable (here: a directory), not throw and tank the run.
+  const bad = m.readIgnoreList('$IGNORE_ROOT/bad-ignore-root');
+  if (!Array.isArray(bad) || bad.length !== 0) throw new Error('readIgnoreList should return [] on an unreadable file');
 });
 " || fail "ignore-list filtering failed"
 pass "ignored external skills are suppressed; others still flagged"

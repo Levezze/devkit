@@ -8,10 +8,11 @@
 # `sync-skills.ignore` is gitignored — your entries stay local and never reach
 # this public repo. Only this .example file is committed.
 #
-# Format: one entry per line. Blank lines and `#` comments are ignored.
+# Format: one entry per line. Blank lines and `#` comments are ignored; a `#` after an
+# entry starts a trailing comment (stripped).
 #   <name>        ignore a skill by name in every environment
 #   <env>/<name>  ignore only in that environment (env = claude | codex | cursor)
 #
 # Examples:
 # notebooklm
-# claude/some-installed-skill
+# claude/some-installed-skill   # only ignored in Claude Code

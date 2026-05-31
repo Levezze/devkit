@@ -36,7 +36,7 @@ If browsing is unavailable, stop and tell the user that model-tier sync is block
 `sync-skills.ignore` at the repo root suppresses the "installed skill is not present in devkit/skills" gap for named skills — for skills installed separately that devkit should not manage and should stop nagging about.
 
 - The file is **gitignored**; entries are per-user and never reach this public repo. Only `sync-skills.ignore.example` is committed (copy it to start).
-- Format: one entry per line, `#` comments and blank lines skipped. A bare `<name>` ignores in every environment; `<env>/<name>` (env = `claude`/`codex`/`cursor`) ignores only there.
+- Format: one entry per line; blank lines and `#` comments (whole-line or trailing) skipped. A bare `<name>` ignores in every environment; `<env>/<name>` (env = `claude`/`codex`/`cursor`) ignores only there. Entries are matched as exact strings, not validated — a typo is inert, never fatal.
 - The list only suppresses gap *reporting*. It never deletes anything and does not affect linking devkit-managed skills into the environments.
 
 ## Policy
