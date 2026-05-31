@@ -27,8 +27,25 @@ function exists(filePath) {
   }
 }
 
+const IGNORE_FILE = 'sync-skills.ignore';
+
 function isUserSkillName(name) {
   return !name.startsWith('.');
+}
+
+// Personal, per-user list of installed skills sync should NOT flag as "not present in
+// devkit/skills" (e.g. a separately-installed skill you don't want devkit to manage). The
+// file is gitignored — contents are user-specific and must never reach the public repo;
+// only sync-skills.ignore.example is committed. One entry per line, `#` comments and blank
+// lines skipped. Each entry is a bare skill name (ignored in every env) or `env/name`
+// (ignored only in that env), reusing the selector grammar from validateSkillSelector.
+export function readIgnoreList(rootDir = ROOT_DIR) {
+  const ignorePath = path.join(rootDir, IGNORE_FILE);
+  if (!exists(ignorePath)) return [];
+  return fs.readFileSync(ignorePath, 'utf-8')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0 && !line.startsWith('#'));
 }
 
 function selectedEnvironmentEntries(environments = Object.keys(ENVIRONMENTS)) {
@@ -354,6 +371,7 @@ export function syncInstalledSkillLinks({
   forceRelinkSkills = [],
   forceRelinkTargets = [],
   plannedRepoSkills = [],
+  ignoredSkills = [],
 } = {}) {
   const result = {
     fixed: [],
@@ -366,6 +384,7 @@ export function syncInstalledSkillLinks({
   }
   const forceRelinkSet = new Set(forceRelinkSkills);
   const forceRelinkTargetSet = new Set(forceRelinkTargets);
+  const ignoredSet = new Set(ignoredSkills);
 
   for (const [environment, parts] of selectedEnvironmentEntries(environments)) {
     const envSkillsDir = path.join(homeDir, ...parts);
@@ -465,13 +484,13 @@ export function syncInstalledSkillLinks({
     }
 
     for (const skillName of installed) {
-      if (!repoSkills.has(skillName)) {
-        result.bigGaps.push({
-          environment,
-          skill: skillName,
-          reason: 'installed skill is not present in devkit/skills',
-        });
-      }
+      if (repoSkills.has(skillName)) continue;
+      if (ignoredSet.has(skillName) || ignoredSet.has(`${environment}/${skillName}`)) continue;
+      result.bigGaps.push({
+        environment,
+        skill: skillName,
+        reason: 'installed skill is not present in devkit/skills',
+      });
     }
   }
 

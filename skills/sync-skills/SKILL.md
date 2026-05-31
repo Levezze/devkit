@@ -28,7 +28,16 @@ If browsing is unavailable, stop and tell the user that model-tier sync is block
    - If the same external skill exists in multiple selected sources, qualify it as `--force-import=claude/notebooklm`, `--force-import=codex/notebooklm`, or `--force-import=cursor/notebooklm`.
 3. If the script only reports fixed metadata or symlink drift, summarize what changed.
 4. If the script reports "Needs user decision", stop and show those gaps to the user. Do not overwrite non-symlink user skill directories or delete skills from any environment without explicit approval.
+   - If a gap is a skill the user installed separately and does not want devkit to manage (so it gets flagged on every run), add it to the ignore list rather than re-flagging it. See "Ignore list" below.
 5. If files changed, run `./scripts/smoke.sh` before finishing.
+
+## Ignore list
+
+`sync-skills.ignore` at the repo root suppresses the "installed skill is not present in devkit/skills" gap for named skills — for skills installed separately that devkit should not manage and should stop nagging about.
+
+- The file is **gitignored**; entries are per-user and never reach this public repo. Only `sync-skills.ignore.example` is committed (copy it to start).
+- Format: one entry per line, `#` comments and blank lines skipped. A bare `<name>` ignores in every environment; `<env>/<name>` (env = `claude`/`codex`/`cursor`) ignores only there.
+- The list only suppresses gap *reporting*. It never deletes anything and does not affect linking devkit-managed skills into the environments.
 
 ## Policy
 
