@@ -1,24 +1,26 @@
 ---
 name: fix-pr-review
-description: Reconcile and apply fixes from one or more external PR reviews plus my own /pr-review output. Scrutinizes findings, voices pushback only when warranted, applies the rest end-to-end (edits → build → test → commit → push).
+description: Reconcile and apply fixes from my own /pr-review output plus any external PR reviews. External reviews are optional — with none pasted, it operates on the internal /pr-review findings alone. Scrutinizes findings, voices pushback only when warranted, applies the rest end-to-end (edits → build → test → commit → push).
 ---
 
 # Fix PR Review
 
 No `model:` pin — this skill inherits the session model. See `docs/adr/0001-no-model-pin-in-skill-frontmatter.md` for why pinning a non-Opus model breaks in 1M-context sessions.
 
-Companion to `/pr-review`. After I've run `/pr-review` myself and pasted back one or more **external** PR reviews (Codex, another Claude, a human reviewer's structured comment block), this skill reconciles all reviews, applies the fixes, and pushes the updated branch.
+Companion to `/pr-review`. After I've run `/pr-review` myself — and optionally pasted back one or more **external** PR reviews (Codex, another Claude, a human reviewer's structured comment block) — this skill reconciles whatever review input is present, applies the fixes, and pushes the updated branch. External reviews are optional; with none, it works from the internal `/pr-review` output alone.
 
 ```
-/grill-me  →  /write-a-prd  →  /prd-to-issues  →  /tdd  →  /pr  →  /pr-review (mine + external)  →  /fix-pr-review
+/grill-me  →  /write-a-prd  →  /prd-to-issues  →  /tdd  →  /pr  →  /pr-review (mine + optional external)  →  /fix-pr-review
 ```
 
-## Inputs — both already in context
+## Inputs
 
-1. **External review(s)**: the user pastes one or more external reviews in the same message that invokes `/fix-pr-review`. Treat every block of review-shaped text in that message as external review input. Multiple reviews from different reviewers (Codex + a human, two Claudes, etc.) are normal — reconcile all of them.
-2. **My own `/pr-review` output**: assumed already present earlier in this conversation. Find it in scrollback. If it is genuinely not in context, say so plainly and stop — do not fabricate one and do not silently skip the reconcile step. Ask the user to run `/pr-review` first or to paste it.
+The internal `/pr-review` output is **required**; external reviews are **optional**.
 
-If the invocation message contains no external review text, stop and ask. The skill is pointless without external input.
+1. **My own `/pr-review` output** (required): assumed already present earlier in this conversation. Find it in scrollback. If it is genuinely not in context, say so plainly and stop — do not fabricate one and do not silently skip the reconcile step. Ask the user to run `/pr-review` first or to paste it.
+2. **External review(s)** (optional): the user may paste one or more external reviews (Codex, another Claude, a human reviewer's structured comment block) in the same message that invokes `/fix-pr-review`. Treat every block of review-shaped text in that message as external review input. Multiple reviewers raising the same point independently is strong signal — reconcile all of them.
+
+If no external review is pasted, this skill is **not** a no-op: it operates on the internal `/pr-review` findings alone, and every guideline below (reconcile, pushback threshold, apply, verify) applies to those findings. Only stop if **neither** the internal `/pr-review` output nor any external review is in context.
 
 ## Branch protection
 
@@ -34,7 +36,7 @@ NEVER commit or push to `main`, `demo`, or `production`. If `git rev-parse --abb
 
 ### 2. Build the unified findings table
 
-Merge findings from all reviews into one list. For each finding capture:
+Merge findings from all reviews into one list. With only the internal `/pr-review` output and no external review, this table is simply those findings (single source) — the scrutiny in step 3 still applies; internal findings are input, not a mandate. For each finding capture:
 
 - **Source(s)**: which reviewer(s) raised it. Two reviewers raising the same point independently is strong signal.
 - **Claim**: what the reviewer says is wrong.
@@ -106,6 +108,8 @@ Run the repository's configured verification gates before commit. Detect them fr
 3. If the repo has no configured gate for a category, mark it `n/a` in the final summary instead of inventing one.
 4. Run e2e only when the change touches request-path code, query shape, env wiring, browser behavior, or another path the repo instructions say requires e2e.
 
+**Read each gate's exit code, not just its tail.** Never pipe a pass/fail gate through `tail`/`head`/`grep` (e.g. `biome check . | tail -2`) — a pipeline's exit status is the last command's, so `tail` returns 0 and a non-zero gate failure is swallowed while the trimmed output looks clean. Run gates unpiped, or make the status explicit (`cmd && echo PASS || echo "FAIL exit=$?"`, or append `; echo "exit=${PIPESTATUS[0]}"`). `build`/`test` shout on failure even when piped; `lint`/format and any tool whose failure is just a non-zero exit + a one-line summary are the silent ones — and they are exactly the gates this skill re-runs after a fix.
+
 If any gate fails, fix the failure (root cause, not by neutering the test) and re-run the relevant gate. Do not commit on red. Run auto-fix commands only when the user has authorized auto-fixes or the repo instructions explicitly make them part of the normal workflow.
 
 ### 7. Commit
@@ -137,7 +141,7 @@ Open: <PR url>
 
 ## Anti-patterns in this skill
 
-- **Rubber-stamping the external reviewer.** External reviews are not authoritative; they are input. A confident-sounding finding can still be wrong. Read the file before agreeing.
+- **Rubber-stamping the reviewer.** No review is authoritative — external reviews *and* your own `/pr-review` output are input, not mandates. A confident-sounding finding can still be wrong. Read the file before agreeing, even when the finding is your own.
 - **Manufacturing pushback.** Pushing back on every review to look critical is the same failure mode as rubber-stamping, mirrored. If everything resolves to `agree`, that's fine — say so and fix.
 - **Symptom-fixing.** Editing exactly the line the reviewer pointed at without understanding the root cause. The fix often belongs one or two layers up.
 - **Patch-test cheating.** Loosening an assertion or deleting a test because the new behavior makes it red. The test was either right (your fix is wrong) or already bad (replace it, don't quietly mutate it).
