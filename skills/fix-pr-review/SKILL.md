@@ -30,7 +30,7 @@ NEVER commit or push to `main`, `demo`, or `production`. If `git rev-parse --abb
 
 ### 1. Read everything before deciding anything
 
-- Re-read the diff of the open PR in full (`gh pr diff <pr>`), not just the files external reviewers cited. External reviewers see only the diff; you see the touched files in full and that often resolves whether a finding is real.
+- Re-read the diff of the open PR in full (`gh pr diff <pr>`), not just the files a finding cited. A review — external or your own `/pr-review` — points at specific lines; you see the touched files in full, and that often resolves whether a finding is real.
 - Read every file referenced by any finding in full. Do not act on a finding from a snippet.
 - If the PR closes an issue, re-read the issue and the parent PRD. The PRD is the contract — a finding that pushes scope beyond the PRD is itself suspect.
 
