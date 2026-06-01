@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { syncAllSkills, ROOT_DIR } from '../src/skill-sync.js';
+import { syncAllSkills, ROOT_DIR, readIgnoreList } from '../src/skill-sync.js';
 
 const apply = process.argv.includes('--apply');
 const envsArg = process.argv.find(arg => arg.startsWith('--envs='));
@@ -17,6 +17,7 @@ const result = syncAllSkills({
   apply,
   environments: environments.length > 0 ? environments : undefined,
   forceImports,
+  ignoredSkills: readIgnoreList(ROOT_DIR),
 });
 
 const importCount = result.imports.imported.length;

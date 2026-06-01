@@ -28,7 +28,7 @@ pass() { echo "  PASS: $*"; }
 echo "Sandbox: $SANDBOX"
 echo
 
-echo "[1/7] Validate SKILL.md frontmatter contract"
+echo "[1/8] Validate SKILL.md frontmatter contract"
 node -e "
 const fs = require('fs');
 const path = require('path');
@@ -64,7 +64,7 @@ import('$REPO_ROOT/src/skill-sync.js').then(m => {
 pass "all SKILL.md frontmatter valid and generated metadata current"
 
 echo
-echo "[2/7] Verify skill discovery and generated Codex metadata"
+echo "[2/8] Verify skill discovery and generated Codex metadata"
 AUTO_ROOT="$SANDBOX/auto-root"
 mkdir -p "$AUTO_ROOT/skills/smoke-auto-skill"
 cat > "$AUTO_ROOT/skills/smoke-auto-skill/SKILL.md" <<'EOF'
@@ -213,7 +213,7 @@ import('$REPO_ROOT/src/skill-sync.js').then(m => {
 pass "new skills are discovered and Codex metadata is generated"
 
 echo
-echo "[3/7] Run installer against sandbox HOME"
+echo "[3/8] Run installer against sandbox HOME"
 HOME="$SANDBOX" node -e "
 import('$REPO_ROOT/src/packages.js').then(async m => {
   const { installFiles } = await import('$REPO_ROOT/src/installer.js');
@@ -224,7 +224,7 @@ import('$REPO_ROOT/src/packages.js').then(async m => {
 pass "installer ran"
 
 echo
-echo "[4/7] Verify whole-directory skill symlinks"
+echo "[4/8] Verify whole-directory skill symlinks"
 for skill in tdd git-commit ddd handoff fix-pr-review sync-skills; do
   link="$SANDBOX/.claude/skills/$skill"
   [ -L "$link" ] || fail "$link is not a symlink (expected dir-symlink)"
@@ -235,7 +235,7 @@ done
 pass "skill directories symlinked correctly"
 
 echo
-echo "[5/7] Verify Codex and Cursor symlinks"
+echo "[5/8] Verify Codex and Cursor symlinks"
 for skill in tdd ddd handoff fix-pr-review sync-skills; do
   link="$SANDBOX/.codex/skills/$skill"
   [ -L "$link" ] || fail "$link is not a symlink"
@@ -266,13 +266,13 @@ done
 pass "Codex and Cursor symlinks created"
 
 echo
-echo "[6/7] Verify copy-mode files are real (mcp.json, settings.json)"
+echo "[6/8] Verify copy-mode files are real (mcp.json, settings.json)"
 [ -f "$SANDBOX/.mcp.json" ] && [ ! -L "$SANDBOX/.mcp.json" ] || fail ".mcp.json should be a real file"
 [ -f "$SANDBOX/.claude/settings.json" ] && [ ! -L "$SANDBOX/.claude/settings.json" ] || fail "settings.json should be a real file"
 pass "copy-mode files preserved"
 
 echo
-echo "[7/7] Idempotent re-run"
+echo "[7/8] Idempotent re-run"
 HOME="$SANDBOX" node -e "
 import('$REPO_ROOT/src/packages.js').then(async m => {
   const { installFiles } = await import('$REPO_ROOT/src/installer.js');
@@ -282,6 +282,68 @@ import('$REPO_ROOT/src/packages.js').then(async m => {
 " > "$SANDBOX/idempotent.log" 2>&1
 grep -q "Linked" "$SANDBOX/idempotent.log" && fail "second run created new symlinks (not idempotent)"
 pass "second run was a silent no-op"
+
+echo
+echo "[8/8] Ignore list excludes named external skills from bigGaps"
+IGNORE_ROOT="$SANDBOX/ignore-root"
+IGNORE_HOME="$SANDBOX/ignore-home"
+mkdir -p "$IGNORE_ROOT/skills" \
+  "$IGNORE_HOME/.claude/skills/external-keep" \
+  "$IGNORE_HOME/.claude/skills/inline-keep" \
+  "$IGNORE_HOME/.claude/skills/scoped-keep" \
+  "$IGNORE_HOME/.claude/skills/external-flag"
+cat > "$IGNORE_ROOT/sync-skills.ignore" <<'EOF'
+# personal ignores — never committed
+external-keep
+inline-keep   # trailing comment should be stripped
+
+# scoped form should also work
+claude/scoped-keep
+EOF
+# A malformed ignore file must never tank sync: point readIgnoreList at a directory.
+mkdir -p "$IGNORE_ROOT/bad-ignore-root/sync-skills.ignore"
+node -e "
+import('$REPO_ROOT/src/skill-sync.js').then(m => {
+  const ignored = m.readIgnoreList('$IGNORE_ROOT');
+  if (!ignored.includes('external-keep')) throw new Error('readIgnoreList dropped bare entry');
+  if (!ignored.includes('inline-keep')) throw new Error('readIgnoreList did not strip trailing inline comment');
+  if (!ignored.includes('claude/scoped-keep')) throw new Error('readIgnoreList dropped scoped entry');
+  if (ignored.some(e => e.startsWith('#') || e === '' || e.includes('#'))) throw new Error('readIgnoreList kept a comment/blank line');
+  const result = m.syncInstalledSkillLinks({
+    rootDir: '$IGNORE_ROOT',
+    homeDir: '$IGNORE_HOME',
+    apply: false,
+    environments: ['claude'],
+    ignoredSkills: ignored,
+  });
+  const gaps = result.bigGaps.map(g => g.skill);
+  if (gaps.includes('external-keep')) throw new Error('bare-name ignore did not suppress bigGap');
+  if (gaps.includes('inline-keep')) throw new Error('inline-comment entry did not suppress bigGap');
+  if (gaps.includes('scoped-keep')) throw new Error('scoped ignore did not suppress bigGap');
+  if (!gaps.includes('external-flag')) throw new Error('non-ignored external skill should still be flagged');
+  // End-to-end through syncAllSkills: locks the ...options spread-forwarding of ignoredSkills
+  // (sibling force* params are explicitly reconstructed, so the spread is a fragile seam).
+  const viaAll = m.syncAllSkills({
+    rootDir: '$IGNORE_ROOT',
+    homeDir: '$IGNORE_HOME',
+    apply: false,
+    environments: ['claude'],
+    ignoredSkills: ignored,
+  });
+  const allGaps = viaAll.links.bigGaps.map(g => g.skill);
+  if (allGaps.includes('external-keep') || allGaps.includes('scoped-keep')) {
+    throw new Error('syncAllSkills did not forward ignoredSkills to syncInstalledSkillLinks');
+  }
+  if (!allGaps.includes('external-flag')) throw new Error('syncAllSkills dropped a non-ignored gap');
+  // readIgnoreList must be a silent no-op when the file is absent...
+  const none = m.readIgnoreList('$SANDBOX/does-not-exist');
+  if (!Array.isArray(none) || none.length !== 0) throw new Error('readIgnoreList should return [] when file is absent');
+  // ...and when the file is unreadable (here: a directory), not throw and tank the run.
+  const bad = m.readIgnoreList('$IGNORE_ROOT/bad-ignore-root');
+  if (!Array.isArray(bad) || bad.length !== 0) throw new Error('readIgnoreList should return [] on an unreadable file');
+});
+" || fail "ignore-list filtering failed"
+pass "ignored external skills are suppressed; others still flagged"
 
 echo
 echo "All smoke checks passed."

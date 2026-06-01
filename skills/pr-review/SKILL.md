@@ -73,7 +73,20 @@ Each file uses a fresh timestamp, so prior runs are preserved and can be inspect
    - The PRD scope and any project-specific architectural constraints relevant to the diff (e.g. controller/service boundary rules if the repo has them).
    - A literal line `OUTPUT_FILE: /tmp/pr-review-<pr#>-<TS>-subagent.md` so the agent streams findings to disk per its protocol.
    - An explicit reminder that the agent must return ONLY a short status (path + per-severity counts + verdict), not the findings themselves.
-6. Run any architectural grep gates relevant to the repo (e.g. cross-module service imports for projects with a controller/service split). Append a one-line result for each gate to the `## Grep gates` section of the main file as the gate runs — do not batch.
+6. Run grep gates. Append a one-line result for each gate to the `## Grep gates` section of the main file as the gate runs — do not batch.
+   - **File-size gate (universal, always run).** For each file the PR touches, compare its line count before and after the change. Flag any file the PR pushes *across* ~1000 lines (≤1000 on the base ref, >1000 on the head ref), plus any already-oversized file the PR grows further. Crossing is a decomposition smell, not an auto-fail — the finding is "this file crossed ~1k lines; decompose first, or is there a compelling structural reason to keep it whole?" Helper to compute the per-file before/after delta:
+     ```bash
+     BASE=$(gh pr view <pr> --json baseRefName -q .baseRefName)
+     for f in $(gh pr diff <pr> --name-only); do
+       [ -f "$f" ] || continue   # skip deletions
+       before=$(git show "origin/$BASE:$f" 2>/dev/null | wc -l | tr -d ' ')
+       after=$(wc -l < "$f" | tr -d ' ')
+       awk -v b="${before:-0}" -v a="$after" -v f="$f" \
+         'BEGIN{ if (a>1000) printf "%s: %d -> %d%s\n", f, b, a, (b<=1000?"  <-- CROSSED 1k":"") }'
+     done
+     ```
+     Append the crossed/oversized files (or "none") to `## Grep gates`.
+   - **Repo-specific architectural gates.** Run any gates relevant to the repo (e.g. cross-module service imports for projects with a controller/service split).
 7. Audit specifically for the smells below. Be hostile. The PR is guilty until proven innocent. As you open each touched file for review, append its path to `## Files reviewed` *before* auditing it — this is the coverage log the resume mechanism reads. **Append each finding to `## Findings` as it is discovered**, one finding per `Edit` call, in the form `- file:path:line — <category> — <severity> — <note>`. Do not hold findings in conversational memory and dump them at the end.
 8. Produce findings. Read both the main file and the sub-agent file from disk. Synthesize the user-facing Output block (see "Output" below) and write it to the `-final.md` file *before* echoing it to chat — that file is the durable artifact if the chat-side message truncates. Critical or smell findings → fail. Pass only when all findings are addressed or explicitly accepted by the user.
 

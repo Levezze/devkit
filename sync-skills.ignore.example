@@ -1,0 +1,18 @@
+# sync-skills ignore list (example)
+#
+# Copy this file to `sync-skills.ignore` (same directory) and add the names of
+# installed skills you DON'T want /sync-skills to flag as "not present in
+# devkit/skills". Useful for skills you installed separately and don't want
+# devkit to manage.
+#
+# `sync-skills.ignore` is gitignored — your entries stay local and never reach
+# this public repo. Only this .example file is committed.
+#
+# Format: one entry per line. Blank lines and `#` comments are ignored; a `#` after an
+# entry starts a trailing comment (stripped).
+#   <name>        ignore a skill by name in every environment
+#   <env>/<name>  ignore only in that environment (env = claude | codex | cursor)
+#
+# Examples:
+# notebooklm
+# claude/some-installed-skill   # only ignored in Claude Code

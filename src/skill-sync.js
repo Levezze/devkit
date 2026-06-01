@@ -27,8 +27,36 @@ function exists(filePath) {
   }
 }
 
+const IGNORE_FILE = 'sync-skills.ignore';
+
 function isUserSkillName(name) {
   return !name.startsWith('.');
+}
+
+// Personal, per-user list of installed skills sync should NOT flag as "not present in
+// devkit/skills" (e.g. a separately-installed skill you don't want devkit to manage). The
+// file is gitignored — contents are user-specific and must never reach the public repo;
+// only sync-skills.ignore.example is committed. One entry per line; blank lines and `#`
+// comments (whole-line or trailing) are stripped. Each surviving entry is matched as an
+// exact string in syncInstalledSkillLinks — a bare skill name (ignored in every env) or
+// `env/name` (ignored only in that env). Entries are NOT validated: a malformed line that
+// matches nothing is simply inert, so a typo here never crashes sync.
+export function readIgnoreList(rootDir = ROOT_DIR) {
+  const ignorePath = path.join(rootDir, IGNORE_FILE);
+  if (!exists(ignorePath)) return [];
+  let raw;
+  try {
+    raw = fs.readFileSync(ignorePath, 'utf-8');
+  } catch {
+    // exists() uses lstatSync, so a dangling symlink or a directory at the path slips past
+    // it and readFileSync throws. Since this runs eagerly while building the CLI options, a
+    // throw would abort the whole sync run — treat an unreadable optional file as empty.
+    return [];
+  }
+  return raw
+    .split('\n')
+    .map(line => line.replace(/\s+#.*$/, '').trim()) // strip trailing inline comments
+    .filter(line => line.length > 0 && !line.startsWith('#'));
 }
 
 function selectedEnvironmentEntries(environments = Object.keys(ENVIRONMENTS)) {
@@ -354,6 +382,7 @@ export function syncInstalledSkillLinks({
   forceRelinkSkills = [],
   forceRelinkTargets = [],
   plannedRepoSkills = [],
+  ignoredSkills = [],
 } = {}) {
   const result = {
     fixed: [],
@@ -366,6 +395,7 @@ export function syncInstalledSkillLinks({
   }
   const forceRelinkSet = new Set(forceRelinkSkills);
   const forceRelinkTargetSet = new Set(forceRelinkTargets);
+  const ignoredSet = new Set(ignoredSkills);
 
   for (const [environment, parts] of selectedEnvironmentEntries(environments)) {
     const envSkillsDir = path.join(homeDir, ...parts);
@@ -465,13 +495,13 @@ export function syncInstalledSkillLinks({
     }
 
     for (const skillName of installed) {
-      if (!repoSkills.has(skillName)) {
-        result.bigGaps.push({
-          environment,
-          skill: skillName,
-          reason: 'installed skill is not present in devkit/skills',
-        });
-      }
+      if (repoSkills.has(skillName)) continue;
+      if (ignoredSet.has(skillName) || ignoredSet.has(`${environment}/${skillName}`)) continue;
+      result.bigGaps.push({
+        environment,
+        skill: skillName,
+        reason: 'installed skill is not present in devkit/skills',
+      });
     }
   }
 
