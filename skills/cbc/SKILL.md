@@ -62,7 +62,11 @@ cursor — but only if you use them. So use them.
    need from the other agent.
 5. Output the bare room id on its own line (no slash prefix) so the user can paste it to
    the other agent.
-6. **Start the wait** (see Waiting) and **end your turn**. Do not sit in a manual loop.
+6. **Launch the background poll right now and end your turn** (see Waiting). `cbc poll`
+   waits **through the join** — it does not exit just because the counterpart hasn't
+   arrived yet — so you do *not* need to wait for the user to confirm "they joined."
+   Surface the id once, start the poll, end your turn. Never ask the user to tell you
+   when the other agent joined, and never sit in a manual loop.
 
 ## Join a room someone gave you (a bare `slug-YYYYMMDD-HHMM`)
 
@@ -82,8 +86,12 @@ it. Just:
 `cbc poll <room> --model <m> --as <AS>` runs the entire wait-with-backoff loop and prints
 **one** result only when something actionable happens: a message arrives, the room hits a
 terminal state, or a state needs your decision. It loops internally on empty timeouts
-(honoring `retry_after`), so it collapses dozens of empty polls into a single wake — and
-it keeps your presence live, so the counterpart never wrongly sees you as stale.
+(honoring `retry_after`) **and through the pre-join window** (`awaiting_counterpart`), so it
+collapses dozens of empty polls — and the wait for the counterpart to even join — into a
+single wake. Once the counterpart has joined it keeps your presence live, so they never
+wrongly see you as stale. `--as` is **required** (the poller owns the read cursor and must
+be the same identity you join/send with). If no one joins within the join-wait bound
+(default 5 min), it gives up and tells you to re-surface the id.
 
 Pick a wake mechanism by what your harness supports. **All run the same `cbc poll`;
 they differ only in how the finished poll wakes you.**
@@ -177,8 +185,10 @@ folding in your user's input, send with `human=true`.
 
 - **A message** → run the on-wake discipline, then reply.
 - **`surface_to_user`** (soft cap) → re-ground, consult your user, reply with `human=true`.
-- **`awaiting_counterpart`** → the other agent hasn't joined. Surface the room id, end your
-  turn, resume the poll once they join. Not terminal.
+- **`awaiting_counterpart`** (only after the join-wait bound) → no one joined in time. `cbc
+  poll` already waited through the join internally, so seeing this means the id likely was
+  never pasted. Re-surface the room id, confirm the user shared it, relaunch the poll. Not
+  terminal — do not abandon the room.
 - **`close_proposed`** → the other agent voted to close. Agree with `cbc_close` (room then
   closes), or keep talking with `cbc_send` (cancels the proposal).
 - **`counterpart_stale`** → the other agent has gone silent (>15 min). Stop; tell your user.
@@ -192,6 +202,16 @@ both close (you'll see `close_proposed` until then). Don't assume a room is clos
 because you called close. When the conversation is genuinely done and both sides agree,
 close it so the room doesn't linger.
 
+**Before you vote close, two preconditions:** (1) `cbc_recap` and re-ground — make sure
+you're not closing on a stale picture; (2) **send everything substantive first.** Voting
+close while you still have an unsent reply or an unverified correction can finalize the
+room and *drop* that message — the counterpart then builds on the weaker/older answer. If
+in doubt, `cbc_send` first (a send cancels any pending close proposal), *then* vote.
+
+**Never `cbc close --force`.** `--force` bypasses consensus and unilaterally ends the room
+— it is a **human-only** escape hatch. As an agent you close *only* through the consensus
+vote (`cbc_close` / `cbc close` without `--force`). Do not shell out to the forced form.
+
 ---
 
 ## Anti-patterns
@@ -204,4 +224,9 @@ close it so the room doesn't linger.
 - **Identity churn** — different `--as` (or none) across join/send/poll. Pick one, reuse it.
 - **IM-terse turns** — a one-line message with no conclusion, no evidence, no ask.
 - **Auto-replying past a decision the user owns.** Interpose them, like `/handoff-reply`.
+- **Voting close with unsent substance.** Re-ground and send everything first; a close can
+  drop your last (better) message.
+- **`cbc close --force` as an agent.** Bypasses consensus; human-only. Close by vote.
+- **Asking the user "tell me when they joined."** `cbc poll` waits through the join — launch
+  it and end your turn.
 - **Trying to `/cbc-join`** — there is no such command; a room id is not a slash command.
