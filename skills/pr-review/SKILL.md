@@ -65,6 +65,8 @@ Each file uses a fresh timestamp, so prior runs are preserved and can be inspect
 
    ## Synthesis notes
    ```
+
+   **Then kick off Codex first (Claude Code only, when available).** If a `/codex:review` command/plugin is installed, launch it in the **background now** so it audits in parallel with this whole review (zero added wall-clock): `Bash(run_in_background: true)` the codex review with `--background`. **Worktree trap:** codex reviews `process.cwd()` = the ROOT repo, not the worktree you may be logically in — when the PR's checkout is a git worktree, pass `-C <absolute path to that worktree>` (alias `--cwd`) or it reviews the wrong tree. A clean worktree (all committed) makes codex auto-diff the branch vs `main` = exactly the PR; verify its log says `Reviewer started: changes against 'main'`. Record the returned output-file path for step 8. If no codex tooling is present (or this skill is itself running under Codex/Cursor), skip silently — `/pr-review` is fully self-sufficient without it. Codex output is **input** to the synthesis, never an auto-block.
 1. Identify the PR. Read its title, body, and the issue number it closes (`Closes #N` or `gh pr view <pr> --json number,closingIssuesReferences`).
 2. Read the issue body. Find the parent PRD reference (`## Parent PRD` or similar).
 3. Read the PRD body. Note the acceptance criteria, the user stories, the implementation decisions, and the out-of-scope list. The PRD is the contract; the PR is the delivery.
@@ -88,7 +90,7 @@ Each file uses a fresh timestamp, so prior runs are preserved and can be inspect
      Append the crossed/oversized files (or "none") to `## Grep gates`.
    - **Repo-specific architectural gates.** Run any gates relevant to the repo (e.g. cross-module service imports for projects with a controller/service split).
 7. Audit specifically for the smells below. Be hostile. The PR is guilty until proven innocent. As you open each touched file for review, append its path to `## Files reviewed` *before* auditing it — this is the coverage log the resume mechanism reads. **Append each finding to `## Findings` as it is discovered**, one finding per `Edit` call, in the form `- file:path:line — <category> — <severity> — <note>`. Do not hold findings in conversational memory and dump them at the end.
-8. Produce findings. Read both the main file and the sub-agent file from disk. Synthesize the user-facing Output block (see "Output" below) and write it to the `-final.md` file *before* echoing it to chat — that file is the durable artifact if the chat-side message truncates. Critical or smell findings → fail. Pass only when all findings are addressed or explicitly accepted by the user.
+8. Produce findings. Read both the main file and the sub-agent file from disk. **If a Codex review was launched at step 0, read its output file too** (wait for it to finish if still running — it ran in parallel, so it is usually done by now) and fold its findings into the synthesis, deduped against your own and the sub-agent's and labeled by source (Codex independently raising a point you also found is strong signal; a Codex-only finding still gets the same hostile scrutiny — read the file before agreeing). If Codex reviewed the wrong tree (no overlap with the PR diff — the classic worktree-cwd miss), say so and discard it rather than fold in noise. Synthesize the user-facing Output block (see "Output" below) and write it to the `-final.md` file *before* echoing it to chat — that file is the durable artifact if the chat-side message truncates. Critical or smell findings → fail. Pass only when all findings are addressed or explicitly accepted by the user.
 
 ### Resuming an interrupted review
 
@@ -134,9 +136,34 @@ A `// TODO(#NN)` is sometimes legitimate. Verify the linked issue exists, has a 
 - The test file the PR adds asserts only structural things (`expect(result.success).toBe(true)`) without checking the data shape.
 - The test happy path passes but no negative test exists for documented error states (404 / 409 / 422).
 
+## Empirical verification gate — claims of non-existence/invalidity
+
+You have a training cutoff; current reality is past it. Any finding — yours, the sub-agent's, or Codex's — that claims **syntax error**, **doesn't exist / nonexistent**, **invalid API/model/version**, or **can't import / can't work** MUST be proven by tool execution before it appears in the output. Run it: `py_compile` (or the language's compiler), execute the snippet, run the cited test. No execution → the finding does not ship.
+
+Hard cross-check: **if the PR's test suite is green, an import-breaking or syntax-error claim is false on its face** — the module already imported to run those tests. Flag the contradiction ("Codex says SyntaxError, but the suite is green — discarded after `py_compile` confirmed valid") instead of folding the finding in. This applies with full force to Codex/sub-agent findings during synthesis: independent corroboration of an *unverified* non-existence claim is two models sharing the same stale cutoff, not signal. A model name the author wrote or that lives in the codebase is assumed real — never flag it as nonexistent.
+
+## Re-review recommendation
+
+Separate from the PASS/FAIL verdict, judge whether a **second, fresh review pass adds value** or is wasted effort. This is not the same as the mandatory re-review-after-fixes on a FAIL (that always happens). It answers: given what this review actually saw, how much should the user trust a *single* pass before merging?
+
+Output one of two recommendations with **reasoning that cites the three drivers**:
+
+- **REDUNDANT** — a second pass would almost certainly surface nothing new. Merge on this review.
+- **RECOMMENDED** — coverage confidence is low enough that an independent pass (after fixes, or by a fresh reviewer/agent) is worth the cost before merge.
+
+Weigh three drivers. Any one can push to RECOMMENDED on its own; they compound.
+
+1. **Issue count & severity.** Many findings — especially Criticals or Smells — mean the PR is churny and the fix pass will mutate it substantially; the post-fix state is effectively unreviewed → RECOMMENDED. Zero or a few trivial Notes → leans REDUNDANT.
+2. **Complexity.** Core/auth/payments/billing, DB migrations, concurrency/transactions, security-sensitive paths, or wide blast radius (a change many call sites depend on) → RECOMMENDED even if this pass came back clean — clean-on-complex is exactly where a single reviewer misses things. Mechanical, docs, config, isolated/leaf changes → leans REDUNDANT.
+3. **Size.** Large diffs (rough guide: many files touched, several hundred+ changed lines, or any file crossing the ~1k gate) lower per-line attention and raise the odds of an unreviewed corner → RECOMMENDED. Small, tight diffs → leans REDUNDANT.
+
+State the call as a real judgement, not a checkbox sum — e.g. "RECOMMENDED: 3 Smells in a migration + transaction path; fixes will rewrite the hot section and the diff is 600+ lines across 14 files — one pass is not enough confidence." Or "REDUNDANT: 1 doc typo, 40-line config-only diff, no logic — a second pass would find nothing."
+
 ## Output
 
 Write the block below to `/tmp/pr-review-<pr#>-<TS>-final.md` first, then echo it to chat. End the chat message with a line `Full review: /tmp/pr-review-<pr#>-<TS>-final.md` so the user can recover the unabridged version if the chat-side message truncates.
+
+Tag each finding that originated from (or was corroborated by) Codex with a trailing `(Codex)` / `(Codex + self)` so the reader sees independent agreement at a glance. If a Codex review ran, add a one-line `Codex: <n> findings folded / wrong-tree, discarded / not available` to the Notes section so its participation is explicit.
 
 ```
 PR #<n> — Review
@@ -144,6 +171,8 @@ PR #<n> — Review
 (Do not include any leading slash-command token like `/pr-review` in this output. The user pastes review output back into other sessions and a leading slash would be re-interpreted as a skill invocation.)
 
 Verdict: PASS | FAIL
+
+Re-review: REDUNDANT | RECOMMENDED — <one-line reasoning citing issue count/severity, complexity, and size>
 
 Critical (must fix before merge):
 - [findings]
