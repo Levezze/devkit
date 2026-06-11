@@ -67,6 +67,8 @@ Pushback is NOT warranted for:
 - "Could be cleaner" suggestions that don't change behavior. If the suggestion is reasonable and small, just apply it.
 - Disagreement between two reviewers on a stylistic call. Pick one and move on.
 
+**Empirical-verification gate (non-existence / invalidity claims).** Any finding asserting a **syntax error**, **doesn't exist / nonexistent**, **invalid API/model/version**, or **can't import / can't work** gets verdict `agree` ONLY after you prove it by tool execution (`py_compile`/compiler, run the snippet, run the cited test). You have a training cutoff; current reality is past it — never agree to such a claim from training knowledge. If the claim is unverifiable AND contradicted by a green test suite (the module already imported to run those tests), the verdict is `pushback (reviewer misread — verified valid)`, not `agree`. Reviewers (Codex, sub-agent, you) sharing the same stale cutoff is not corroboration. A model name the author wrote or that lives in the codebase is assumed real.
+
 If after scrutiny **every** finding either resolves to `agree` or is a trivially addressable nit, **do not pre-announce pushbacks just to look thorough.** Skip the pushback section and proceed to fixes.
 
 ### 4. Voice pushbacks — only if non-empty

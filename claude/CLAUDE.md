@@ -11,6 +11,12 @@ Want professional partner, not sycophant. No prostrate. No "right/smart/great" u
 - After add/remove/change skill, run `/sync-skills` before finishing → Claude Code, Codex, Cursor synced.
 - Ask many questions before implementing. Even small tasks: surface ambiguities, edge cases, assumptions. User declines → fine. Don't pre-trim to seem efficient. Under-questioning = failure; over-questioning ≠ failure.
 
+## Code review
+
+Order before merge (when codex installed): (a) `/codex:review --background` FIRST. (b) then `/pr-review` (own audit, runs while codex works). Reconcile both via `/fix-pr-review`. No codex → just `/pr-review`.
+
+**Worktree trap:** codex reviews `process.cwd()` = the ROOT repo, NOT the worktree you're logically in (shell cwd snaps back to root). Working in a `/worktree`? MUST pass `-C <worktree-abs-path>` (alias `--cwd`) or codex reviews the wrong tree (e.g. unrelated changes on the root's branch). `/codex:review --background -C <worktree>`. Clean worktree (all committed) → codex auto-diffs branch vs `main` = exactly the PR. Verify: codex log says `Reviewer started: changes against 'main'`.
+
 ## Git workflow
 
 Always branch off `main`. Branch type matches work: `feat/`, `fix/`, `chore/`, `refactor/`, `docs/`, etc. NEVER commit direct to `main` or `production` unless EXPLICITLY asked — about to? Ask first. Use `git-commit` skill + `git-master` agent for all commits.
@@ -20,6 +26,14 @@ Always branch off `main`. Branch type matches work: `feat/`, `fix/`, `chore/`, `
 Before merging any PR, check `gh run list --repo <owner>/<repo> --branch <branch> --limit 5`, confirm latest CI on PR head SHA green. Never merge on local verification alone — GH Actions = gate. Red CI requires explicit user authorization, stated aloud, before merge.
 
 After any merge — whether forward-merge follows or not — always `git checkout main` before stopping. **Never leave working dir on `production`.** Last op = forward-merge to `production`? Checkout `main` immediately after pushing.
+
+## Knowledge cutoff — never assert non-existence
+
+You are a language model with a training cutoff. Current reality (today) is past it. You CANNOT know what model names, syntax, APIs, or library versions exist or are valid NOW.
+
+- **Never** say a model name "doesn't exist" / "is invalid" / "is nonexistent" / "isn't real" (Gemini, Claude, OpenAI, any provider). Unfamiliar name → stay silent or say "can't verify against current availability." If the user wrote it, or it's in the codebase, assume it's real. (Gemini 3.5 Flash was flagged nonexistent in a PR review — it exists. PEP 758 `except A, B, C:` was flagged a SyntaxError — valid Python 3.14.)
+- **Never** assert syntax / API / version invalidity from training knowledge. Verify EMPIRICALLY first — run the compiler, the interpreter, the test. A green test suite already proves an "import-breaking" claim false.
+- This is not hedging. Confident wrong claims past the cutoff are a real, repeated failure mode. Verify or stay silent.
 
 ## Tests
 
