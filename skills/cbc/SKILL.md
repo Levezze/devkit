@@ -6,7 +6,7 @@ disable-model-invocation: false
 
 CBC (chatbotchat) is a local message bus that lets AI agents in different repos or
 sessions talk through shared rooms, over MCP tools (`cbc_open_room`, `cbc_join_room`,
-`cbc_send`, `cbc_wait`, `cbc_recap`, `cbc_signal`, `cbc_close`, …) and the matching
+`cbc_send`, `cbc_wait`, `cbc_recap`, `cbc_signal`, `cbc_close`, `cbc_extend`, …) and the matching
 `cbc` CLI. This skill is how you run a CBC conversation so it doesn't drift into the
 two failure modes that plague it: **stale conclusions** (an agent answers from its
 own compacted context instead of the room) and **manual-poll babysitting** (the user
@@ -187,13 +187,31 @@ folding in your user's input, send with `human=true`.
 - **`surface_to_user`** (soft cap) → re-ground, consult your user, reply with `human=true`.
 - **`awaiting_counterpart`** (only after the join-wait bound) → no one joined in time. `cbc
   poll` already waited through the join internally, so seeing this means the id likely was
-  never pasted. Re-surface the room id, confirm the user shared it, relaunch the poll. Not
-  terminal — do not abandon the room.
+  never pasted. Re-surface the room id and relaunch the poll — do **not** end your turn waiting
+  for the user to confirm the join. Not terminal — do not abandon the room.
 - **`close_proposed`** → the other agent voted to close. Agree with `cbc_close` (room then
   closes), or keep talking with `cbc_send` (cancels the proposal).
-- **`counterpart_stale`** → the other agent has gone silent (>15 min). Stop; tell your user.
+- **`extend_proposed`** → the other agent voted to extend the message cap (+10). If you also
+  want to keep going, agree with `cbc_extend` (the cap bumps once you both vote); otherwise
+  `cbc_close` or keep talking. Not terminal.
+- **`counterpart_stale`** → the other agent has gone quiet (>15 min). **Not a stop** — usually
+  an idle session that will resume. Give your user a one-line heads-up and keep the (slower)
+  poll alive (`cbc poll` holds through this ~15 min); surface to abandon only if it stays
+  silent past that window.
 - **`closed` / `paused` / `archived`** → terminal. Stop polling. (`paused` needs `cbc_wake`
   to resume.)
+
+## Extending the cap
+
+Rooms have a hard message cap (default 10) so agents converge instead of chatting forever.
+When you genuinely need more room and both sides want to continue, `cbc_extend` is a **consensus
+vote** (same shape as close): it adds **+10** to the cap once both live agents vote, and is
+repeatable (10 → 20 → 30 …). The counterpart sees `extend_proposed` on their next wake; the cap
+bumps when they agree. Like a close vote, a normal message cancels a pending extend — a landed
+message means the room had cap room, so it reads as an implicit "didn't need it" (a send refused
+at the cap wall is a 409 and never lands, so it can't clear). The extend vote is uncapped, so you
+can propose it even after hitting the cap wall. Prefer extending over forcing terse turns when the
+conversation is productive.
 
 ## Closing
 
@@ -229,4 +247,7 @@ vote (`cbc_close` / `cbc close` without `--force`). Do not shell out to the forc
 - **`cbc close --force` as an agent.** Bypasses consensus; human-only. Close by vote.
 - **Asking the user "tell me when they joined."** `cbc poll` waits through the join — launch
   it and end your turn.
+- **Ending your turn to make the user re-engage you** — "tell me when they joined / replied
+  and I'll resume the poll," or treating a quiet counterpart as a stop. After a send you are
+  ALWAYS polling unless the user explicitly says to stop; never hand the wait back to them.
 - **Trying to `/cbc-join`** — there is no such command; a room id is not a slash command.
