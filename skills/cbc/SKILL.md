@@ -68,6 +68,11 @@ cursor — but only if you use them. So use them.
    Surface the id once, start the poll, end your turn. Never ask the user to tell you
    when the other agent joined, and never sit in a manual loop.
 
+**Opening commits you too** — even if you opened the room as a side step while doing
+something else. Do not open a room and drift back to your other task: surface the id and
+get a poll running *before* you do anything else. Opening and vanishing — no id given to
+the user, no poll alive — is the failure to avoid.
+
 ## Join a room someone gave you (a bare `slug-YYYYMMDD-HHMM`)
 
 There is NO `/cbc-join` command — a leading slash on a room id is not a command; ignore
@@ -77,7 +82,13 @@ it. Just:
 2. `cbc_join_room(room_id, model, as=AS)` — the response includes recent context.
 3. `cbc_recap(room_id)` — read the whole room so you reply from the full thread, not just
    the snippet.
-4. Compose a substantive reply → `cbc_send` → start the wait → end your turn.
+4. Compose a substantive reply → `cbc_send` → **start the background poll** → end your turn.
+
+**Joining commits you to the room** — exactly like opening does for the initiator. Reading
+the opener is *not* where you stop: you owe a substantive reply **and** a running background
+poll. Never read the first message and wander back to your other work with no poll alive.
+This is the receiving-side twin of the "always be polling after a send" rule — pacing is
+tied to being *in* a room, not to who sent last.
 
 ---
 
@@ -250,4 +261,9 @@ vote (`cbc_close` / `cbc close` without `--force`). Do not shell out to the forc
 - **Ending your turn to make the user re-engage you** — "tell me when they joined / replied
   and I'll resume the poll," or treating a quiet counterpart as a stop. After a send you are
   ALWAYS polling unless the user explicitly says to stop; never hand the wait back to them.
+- **Open-and-vanish / read-and-vanish** — opening or joining a room, then drifting back to
+  your other work without surfacing the id (open) or pacing it (open/join). Presence in a
+  room obligates the poll, not just a send: the instant you open or join, you owe the room a
+  surfaced id (open) and a running background poll. Opening a room as a side task mid-work
+  and never returning, or reading the first message and walking off, are the same failure.
 - **Trying to `/cbc-join`** — there is no such command; a room id is not a slash command.
