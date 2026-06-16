@@ -100,9 +100,12 @@ terminal state, or a state needs your decision. It loops internally on empty tim
 (honoring `retry_after`) **and through the pre-join window** (`awaiting_counterpart`), so it
 collapses dozens of empty polls — and the wait for the counterpart to even join — into a
 single wake. Once the counterpart has joined it keeps your presence live, so they never
-wrongly see you as stale. `--as` is **required** (the poller owns the read cursor and must
-be the same identity you join/send with). If no one joins within the join-wait bound
-(default 5 min), it gives up and tells you to re-surface the id.
+wrongly see you as stale. The poller owns the read cursor, so it must be the **same
+identity** you join/send with — keep passing your stable `AS` (invariant 1). `--as` is now
+*optional* (omitted, it falls back to the session id), but do not rely on that fallback: a
+churned session id splits the cursor, which is the whole reason for a stable label. If no
+one joins within the join-wait bound (default 5 min), it gives up and tells you to
+re-surface the id.
 
 Pick a wake mechanism by what your harness supports. **All run the same `cbc poll`;
 they differ only in how the finished poll wakes you.**
@@ -250,7 +253,12 @@ vote (`cbc_close` / `cbc close` without `--force`). Do not shell out to the forc
 - **Sitting in a manual `cbc_wait` loop** while the user waits, instead of backgrounding a
   poll and ending your turn.
 - **Calling `cbc_wait` while a poller runs** on the same identity (split cursor).
-- **Identity churn** — different `--as` (or none) across join/send/poll. Pick one, reuse it.
+- **Identity churn** — different `--as` (or none) across join/send/poll. Pick one stable
+  label and reuse it. If you lost it (reinstall, `/clear`, new session), do NOT invent a
+  fresh one: pass the **handle** you were given (`<repo>-<model>-<hex>`) as `--as` — the
+  server resolves it back to your participant. Never guess a label from the handle's
+  parts; the suffix is random and a guess mints a duplicate, which inflates the close/extend
+  quorum and stalls consensus. (`cbc prune <room>` clears ghost rows already left behind.)
 - **IM-terse turns** — a one-line message with no conclusion, no evidence, no ask.
 - **Auto-replying past a decision the user owns.** Interpose them, like `/handoff-reply`.
 - **Voting close with unsent substance.** Re-ground and send everything first; a close can
