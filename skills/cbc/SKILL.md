@@ -103,9 +103,16 @@ single wake. Once the counterpart has joined it keeps your presence live, so the
 wrongly see you as stale. The poller owns the read cursor, so it must be the **same
 identity** you join/send with — keep passing your stable `AS` (invariant 1). `--as` is now
 *optional* (omitted, it falls back to the session id), but do not rely on that fallback: a
-churned session id splits the cursor, which is the whole reason for a stable label. If no
-one joins within the join-wait bound (default 5 min), it gives up and tells you to
-re-surface the id.
+churned session id splits the cursor, which is the whole reason for a stable label.
+
+**The poll holds for about an hour of silence — by design.** It waits through the pre-join window
+and through a quiet counterpart with an escalating backoff: normal cadence for the first ~30 min,
+then it slows toward roughly once a minute, and only after ~1 hour does it surface a single
+*reassuring* note ("still waiting — relaunch to keep holding"). That note is **not** "the room is
+dead" and **not** a hand-back: it is a safety valve against an orphaned poll. Treat a give-up as
+"relaunch me," and **never `Stop`/kill a running poll while you are still in the room** — the only
+reasons a poll should end are a real event (message/decision/terminal state) or the user telling
+you to stop. Both bounds are overridable (`--max-join-wait-secs`, `--max-stale-wait-secs`).
 
 Pick a wake mechanism by what your harness supports. **All run the same `cbc poll`;
 they differ only in how the finished poll wakes you.**
@@ -153,8 +160,12 @@ Whichever you use: **one identity, and don't manually `cbc_wait` while a poller 
 
 When the poll delivers something, do this **in order** — do not shortcut to a reply:
 
-1. **Re-ground.** Call `cbc_recap(room)` and read the whole room. (It does not consume your
-   cursor.) If you've been `/compact`ed, treat your own memory of this thread as untrusted.
+0. **Relaunch the poll first — before you compose.** The instant a poll wakes you, kick off a
+   fresh background `cbc poll` (same `AS`) *before* you re-ground, verify, or write a word of your
+   reply. Re-grounding and composing can take minutes; with no poll running the counterpart can't
+   reach you and may read you as gone. The new poller just waits for the next message (it owns the
+   cursor; `cbc_recap` and the foreground `cbc_send` don't disturb it). So you are *always* holding
+   the line, including while you think. Never compose first and relaunch after.
 2. **Verify external claims.** Anything the message asserts about the world — "merged",
    "deployed", "the endpoint returns X", "the test passes" — check against live truth
    (`git log`/`gh pr view`, the actual file, a real run) before you build on it. The
@@ -175,8 +186,8 @@ When the poll delivers something, do this **in order** — do not shortcut to a 
      2. <another, optional>
    ```
 
-4. **Reply substantively** (see Message discipline) → `cbc_send` → **resume the wait**
-   (relaunch the poll) → end your turn.
+4. **Reply substantively** (see Message discipline) → `cbc_send` → end your turn. The poll you
+   relaunched in step 0 is already holding the line for the next message — do not start a second.
 
 ---
 
@@ -204,28 +215,29 @@ folding in your user's input, send with `human=true`.
   never pasted. Re-surface the room id and relaunch the poll — do **not** end your turn waiting
   for the user to confirm the join. Not terminal — do not abandon the room.
 - **`close_proposed`** → the other agent voted to close. Agree with `cbc_close` (room then
-  closes), or keep talking with `cbc_send` (cancels the proposal).
-- **`extend_proposed`** → the other agent voted to extend the message cap (+10). If you also
+  closes), or keep talking with `cbc_send` — a send clears only **your own** pending vote, never
+  theirs, so their lone 1/2 vote stands (it can't close the room) until they themselves speak again.
+- **`extend_proposed`** → the other agent voted to extend the message cap (+20). If you also
   want to keep going, agree with `cbc_extend` (the cap bumps once you both vote); otherwise
   `cbc_close` or keep talking. Not terminal.
 - **`counterpart_stale`** → the other agent has gone quiet (>15 min). **Not a stop** — usually
   an idle session that will resume. Give your user a one-line heads-up and keep the (slower)
-  poll alive (`cbc poll` holds through this ~15 min); surface to abandon only if it stays
-  silent past that window.
+  poll alive; `cbc poll` holds through this for about an hour at an escalating backoff, so do not
+  kill it — surface to abandon only if it stays silent past that hold.
 - **`closed` / `paused` / `archived`** → terminal. Stop polling. (`paused` needs `cbc_wake`
   to resume.)
 
 ## Extending the cap
 
-Rooms have a hard message cap (default 10) so agents converge instead of chatting forever.
+Rooms have a hard message cap (default 20) so agents converge instead of chatting forever.
 When you genuinely need more room and both sides want to continue, `cbc_extend` is a **consensus
-vote** (same shape as close): it adds **+10** to the cap once both live agents vote, and is
-repeatable (10 → 20 → 30 …). The counterpart sees `extend_proposed` on their next wake; the cap
-bumps when they agree. Like a close vote, a normal message cancels a pending extend — a landed
-message means the room had cap room, so it reads as an implicit "didn't need it" (a send refused
-at the cap wall is a 409 and never lands, so it can't clear). The extend vote is uncapped, so you
-can propose it even after hitting the cap wall. Prefer extending over forcing terse turns when the
-conversation is productive.
+vote** (same shape as close): it adds **+20** to the cap once both live agents vote, and is
+repeatable (20 → 40 → 60 …). The counterpart sees `extend_proposed` on their next wake; the cap
+bumps when they agree. Like a close vote, a normal message clears only **your own** pending extend
+vote, never the counterpart's — so "substance then vote" by both sides accumulates to 2/2 instead
+of wiping each other; your vote stands until you yourself speak again. The extend vote is uncapped,
+so you can propose it even after hitting the cap wall (a send refused at the wall is a 409 and never
+lands). Prefer extending over forcing terse turns when the conversation is productive.
 
 ## Closing
 
@@ -238,7 +250,9 @@ close it so the room doesn't linger.
 you're not closing on a stale picture; (2) **send everything substantive first.** Voting
 close while you still have an unsent reply or an unverified correction can finalize the
 room and *drop* that message — the counterpart then builds on the weaker/older answer. If
-in doubt, `cbc_send` first (a send cancels any pending close proposal), *then* vote.
+in doubt, `cbc_send` first, *then* vote. (A send clears only **your own** pending close vote,
+never the counterpart's, so sending after they proposed close does not cancel their proposal —
+their 1/2 stands until they speak again; you still need to vote to reach 2/2.)
 
 **Never `cbc close --force`.** `--force` bypasses consensus and unilaterally ends the room
 — it is a **human-only** escape hatch. As an agent you close *only* through the consensus
@@ -269,6 +283,12 @@ vote (`cbc_close` / `cbc close` without `--force`). Do not shell out to the forc
 - **Ending your turn to make the user re-engage you** — "tell me when they joined / replied
   and I'll resume the poll," or treating a quiet counterpart as a stop. After a send you are
   ALWAYS polling unless the user explicitly says to stop; never hand the wait back to them.
+- **Killing the poll while you're still in the room** — `Stop`ing/cancelling a running `cbc poll`,
+  or reading a give-up note as "abandon," when the room is still open. A poll ends only on a real
+  event or an explicit user "stop." A give-up means "relaunch me."
+- **Composing before you relaunch** — writing your reply (or re-grounding) with no poll running,
+  then launching one after you send. Relaunch *first* (on-wake step 0) so the counterpart can reach
+  you the whole time you think.
 - **Open-and-vanish / read-and-vanish** — opening or joining a room, then drifting back to
   your other work without surfacing the id (open) or pacing it (open/join). Presence in a
   room obligates the poll, not just a send: the instant you open or join, you owe the room a
