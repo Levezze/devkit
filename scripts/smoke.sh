@@ -28,7 +28,7 @@ pass() { echo "  PASS: $*"; }
 echo "Sandbox: $SANDBOX"
 echo
 
-echo "[1/8] Validate SKILL.md frontmatter contract"
+echo "[1/9] Validate SKILL.md frontmatter contract"
 node -e "
 const fs = require('fs');
 const path = require('path');
@@ -64,7 +64,7 @@ import('$REPO_ROOT/src/skill-sync.js').then(m => {
 pass "all SKILL.md frontmatter valid and generated metadata current"
 
 echo
-echo "[2/8] Verify skill discovery and generated Codex metadata"
+echo "[2/9] Verify skill discovery and generated Codex metadata"
 AUTO_ROOT="$SANDBOX/auto-root"
 mkdir -p "$AUTO_ROOT/skills/smoke-auto-skill"
 cat > "$AUTO_ROOT/skills/smoke-auto-skill/SKILL.md" <<'EOF'
@@ -213,7 +213,7 @@ import('$REPO_ROOT/src/skill-sync.js').then(m => {
 pass "new skills are discovered and Codex metadata is generated"
 
 echo
-echo "[3/8] Run installer against sandbox HOME"
+echo "[3/9] Run installer against sandbox HOME"
 HOME="$SANDBOX" node -e "
 import('$REPO_ROOT/src/packages.js').then(async m => {
   const { installFiles } = await import('$REPO_ROOT/src/installer.js');
@@ -224,7 +224,7 @@ import('$REPO_ROOT/src/packages.js').then(async m => {
 pass "installer ran"
 
 echo
-echo "[4/8] Verify whole-directory skill symlinks"
+echo "[4/9] Verify whole-directory skill symlinks"
 for skill in tdd git-commit ddd handoff fix-pr-review sync-skills; do
   link="$SANDBOX/.claude/skills/$skill"
   [ -L "$link" ] || fail "$link is not a symlink (expected dir-symlink)"
@@ -235,7 +235,7 @@ done
 pass "skill directories symlinked correctly"
 
 echo
-echo "[5/8] Verify Codex and Cursor symlinks"
+echo "[5/9] Verify Codex and Cursor symlinks"
 for skill in tdd ddd handoff fix-pr-review sync-skills; do
   link="$SANDBOX/.codex/skills/$skill"
   [ -L "$link" ] || fail "$link is not a symlink"
@@ -266,13 +266,13 @@ done
 pass "Codex and Cursor symlinks created"
 
 echo
-echo "[6/8] Verify copy-mode files are real (mcp.json, settings.json)"
+echo "[6/9] Verify copy-mode files are real (mcp.json, settings.json)"
 [ -f "$SANDBOX/.mcp.json" ] && [ ! -L "$SANDBOX/.mcp.json" ] || fail ".mcp.json should be a real file"
 [ -f "$SANDBOX/.claude/settings.json" ] && [ ! -L "$SANDBOX/.claude/settings.json" ] || fail "settings.json should be a real file"
 pass "copy-mode files preserved"
 
 echo
-echo "[7/8] Idempotent re-run"
+echo "[7/9] Idempotent re-run"
 HOME="$SANDBOX" node -e "
 import('$REPO_ROOT/src/packages.js').then(async m => {
   const { installFiles } = await import('$REPO_ROOT/src/installer.js');
@@ -284,7 +284,7 @@ grep -q "Linked" "$SANDBOX/idempotent.log" && fail "second run created new symli
 pass "second run was a silent no-op"
 
 echo
-echo "[8/8] Ignore list excludes named external skills from bigGaps"
+echo "[8/9] Ignore list excludes named external skills from bigGaps"
 IGNORE_ROOT="$SANDBOX/ignore-root"
 IGNORE_HOME="$SANDBOX/ignore-home"
 mkdir -p "$IGNORE_ROOT/skills" \
@@ -344,6 +344,113 @@ import('$REPO_ROOT/src/skill-sync.js').then(m => {
 });
 " || fail "ignore-list filtering failed"
 pass "ignored external skills are suppressed; others still flagged"
+
+echo
+echo "[9/9] Replicate list fans externally-owned skills out to other envs"
+REPL_ROOT="$SANDBOX/repl-root"
+REPL_HOME="$SANDBOX/repl-home"
+mkdir -p "$REPL_ROOT/skills" \
+  "$REPL_HOME/.claude/skills/owned-skill" \
+  "$REPL_HOME/.claude/skills/real-dir-skill" \
+  "$REPL_HOME/.cursor/skills/real-dir-skill"
+cat > "$REPL_HOME/.claude/skills/owned-skill/SKILL.md" <<'EOF'
+---
+name: owned-skill
+description: Externally-owned skill summary sentence.
+---
+
+# Owned Skill
+EOF
+# real-dir-skill is owned (has a ~/.claude copy) AND already has a real (non-symlink)
+# directory at its Cursor destination — that real dir must be reported, never clobbered.
+cat > "$REPL_HOME/.claude/skills/real-dir-skill/SKILL.md" <<'EOF'
+---
+name: real-dir-skill
+description: An externally-owned skill whose Cursor slot is a real user directory.
+---
+
+# Real Dir Skill (owner)
+EOF
+cat > "$REPL_HOME/.cursor/skills/real-dir-skill/SKILL.md" <<'EOF'
+---
+name: real-dir-skill
+description: A pre-existing real directory the user controls.
+---
+
+# Real Dir Skill (cursor)
+EOF
+node -e "
+import('$REPO_ROOT/src/skill-sync.js').then(m => {
+  const fs = require('fs');
+  // Dry run must not write any symlink.
+  const dry = m.syncReplicatedSkills({
+    rootDir: '$REPL_ROOT', homeDir: '$REPL_HOME', apply: false,
+    environments: ['claude', 'codex', 'cursor'],
+    replicateSkills: ['owned-skill', 'absent-skill'],
+  });
+  if (!dry.fixed.some(f => f.environment === 'codex' && f.skill === 'owned-skill')) {
+    throw new Error('dry run did not report codex replicate for owned-skill');
+  }
+  if (fs.existsSync('$REPL_HOME/.codex/skills/owned-skill')) {
+    throw new Error('dry run created a symlink');
+  }
+  if (!dry.current.some(c => c.skill === 'absent-skill')) {
+    throw new Error('absent owner copy should be inert (reported current, not fixed)');
+  }
+  // Apply: symlink owned-skill into codex + cursor, pointed at the owner copy.
+  const res = m.syncReplicatedSkills({
+    rootDir: '$REPL_ROOT', homeDir: '$REPL_HOME', apply: true,
+    environments: ['claude', 'codex', 'cursor'],
+    replicateSkills: ['owned-skill', 'absent-skill', 'real-dir-skill'],
+  });
+  const ownerPath = fs.realpathSync('$REPL_HOME/.claude/skills/owned-skill');
+  for (const env of ['.codex', '.cursor']) {
+    const link = '$REPL_HOME/' + env + '/skills/owned-skill';
+    if (!fs.lstatSync(link).isSymbolicLink()) throw new Error(env + ' owned-skill is not a symlink');
+    if (fs.realpathSync(link) !== ownerPath) throw new Error(env + ' owned-skill does not resolve to the owner copy');
+  }
+  // Owner env (claude) must NOT get a self-link.
+  if (fs.lstatSync('$REPL_HOME/.claude/skills/owned-skill').isSymbolicLink()) {
+    throw new Error('replicate created a self-symlink in the owner env');
+  }
+  // The pre-existing real Cursor dir must be reported as a bigGap, not overwritten.
+  if (!res.bigGaps.some(g => g.environment === 'cursor' && g.skill === 'real-dir-skill')) {
+    throw new Error('real non-symlink dir was not reported as a bigGap');
+  }
+  if (fs.lstatSync('$REPL_HOME/.cursor/skills/real-dir-skill').isSymbolicLink()) {
+    throw new Error('replicate clobbered a real user directory');
+  }
+  // Idempotent re-apply: everything current, nothing re-fixed.
+  const again = m.syncReplicatedSkills({
+    rootDir: '$REPL_ROOT', homeDir: '$REPL_HOME', apply: true,
+    environments: ['claude', 'codex', 'cursor'],
+    replicateSkills: ['owned-skill'],
+  });
+  if (again.fixed.length !== 0) throw new Error('second apply re-fixed an already-correct link');
+  // End-to-end: syncAllSkills runs replicate AND suppresses the owned skill as a links bigGap.
+  const all = m.syncAllSkills({
+    rootDir: '$REPL_ROOT', homeDir: '$REPL_HOME', apply: false,
+    environments: ['claude', 'codex', 'cursor'],
+    replicateSkills: ['owned-skill'],
+  });
+  if (!all.replicate) throw new Error('syncAllSkills did not return a replicate result');
+  if (all.links.bigGaps.some(g => g.skill === 'owned-skill')) {
+    throw new Error('syncAllSkills did not ignore the replicated skill in link gaps');
+  }
+  // Empty replicate list is a complete no-op.
+  const noop = m.syncReplicatedSkills({
+    rootDir: '$REPL_ROOT', homeDir: '$REPL_HOME', apply: true,
+    environments: ['claude', 'codex', 'cursor'], replicateSkills: [],
+  });
+  if (noop.fixed.length || noop.bigGaps.length || noop.current.length) {
+    throw new Error('empty replicate list should be a complete no-op');
+  }
+  // readReplicateList is a silent no-op when the file is absent.
+  const none = m.readReplicateList('$SANDBOX/does-not-exist');
+  if (!Array.isArray(none) || none.length !== 0) throw new Error('readReplicateList should return [] when file is absent');
+});
+" || fail "replicate-list fan-out failed"
+pass "externally-owned skills replicate out; real dirs preserved; empty list is a no-op"
 
 echo
 echo "All smoke checks passed."

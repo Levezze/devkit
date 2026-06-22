@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { syncAllSkills, ROOT_DIR, readIgnoreList } from '../src/skill-sync.js';
+import { syncAllSkills, ROOT_DIR, readIgnoreList, readReplicateList } from '../src/skill-sync.js';
 
 const apply = process.argv.includes('--apply');
 const envsArg = process.argv.find(arg => arg.startsWith('--envs='));
@@ -18,12 +18,14 @@ const result = syncAllSkills({
   environments: environments.length > 0 ? environments : undefined,
   forceImports,
   ignoredSkills: readIgnoreList(ROOT_DIR),
+  replicateSkills: readReplicateList(ROOT_DIR),
 });
 
 const importCount = result.imports.imported.length;
 const metadataCount = result.metadata.updated.length;
+const replicateCount = result.replicate.fixed.length;
 const linkCount = result.links.fixed.length;
-const gapCount = result.links.bigGaps.length + result.metadata.errors.length + result.imports.errors.length;
+const gapCount = result.links.bigGaps.length + result.replicate.bigGaps.length + result.metadata.errors.length + result.imports.errors.length;
 
 if (importCount > 0) {
   const verb = apply ? 'Imported' : 'Would import';
@@ -44,6 +46,14 @@ if (metadataCount > 0) {
   console.log(`${verb} Codex metadata for ${metadataCount} skill(s): ${result.metadata.updated.join(', ')}`);
 } else {
   console.log('Codex metadata is current.');
+}
+
+if (replicateCount > 0) {
+  const verb = apply ? 'Replicated' : 'Would replicate';
+  console.log(`${verb} ${replicateCount} externally-owned skill link(s):`);
+  for (const item of result.replicate.fixed) {
+    console.log(`- ${item.environment}/${item.skill}: ${item.reason}`);
+  }
 }
 
 if (linkCount > 0) {
@@ -72,11 +82,13 @@ if (result.metadata.errors.length > 0) {
   }
 }
 
-if (result.links.bigGaps.length > 0) {
+const allBigGaps = [...result.replicate.bigGaps, ...result.links.bigGaps];
+if (allBigGaps.length > 0) {
   console.log('');
   console.log('Needs user decision:');
-  for (const item of result.links.bigGaps) {
-    console.log(`- ${item.environment}/${item.skill}: ${item.reason}`);
+  for (const item of allBigGaps) {
+    const scope = item.environment ? `${item.environment}/` : '';
+    console.log(`- ${scope}${item.skill}: ${item.reason}`);
   }
 }
 

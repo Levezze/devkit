@@ -1,0 +1,31 @@
+# sync-skills replicate list (example)
+#
+# Copy this file to `sync-skills.replicate` (same directory) and list skills that
+# ANOTHER tool installs into the Claude Code user scope (~/.claude/skills/<name>)
+# and that you want devkit to fan OUT to the other AI environments (Codex, Cursor).
+#
+# devkit does NOT own or import these skills — the owning tool installs and updates
+# them. /sync-skills only symlinks ~/.codex/skills/<name> and
+# ~/.cursor/skills/<name> to the owner copy at ~/.claude/skills/<name>, so a skill
+# the owner ships once is reachable from every agent. Listing a skill here also
+# stops /sync-skills from flagging it as "installed but not present in devkit".
+#
+# If the owner copy isn't installed, the entry is inert — nothing happens. An empty
+# or absent list is a complete no-op: devkit has zero dependency on any owning tool.
+#
+# `sync-skills.replicate` is gitignored — your entries stay local and never reach
+# this public repo. Only this .example file is committed.
+#
+# Caveat: replicated skills get the symlink only, not a generated Codex
+# agents/openai.yaml (that's generated for devkit-owned skills). Codex still loads
+# the skill; it just lacks the generated `interface:` metadata.
+#
+# Format: one bare skill name per line. Blank lines and `#` comments are ignored;
+# a `#` after an entry starts a trailing comment (stripped).
+#
+# Example (the cbc binary installs these into ~/.claude/skills):
+# cbc
+# cbc-orchestrator
+# cbc-report
+# cbc-peer
+# cbc-recap

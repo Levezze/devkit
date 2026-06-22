@@ -39,6 +39,17 @@ If browsing is unavailable, stop and tell the user that model-tier sync is block
 - Format: one entry per line; blank lines and `#` comments (whole-line or trailing) skipped. A bare `<name>` ignores in every environment; `<env>/<name>` (env = `claude`/`codex`/`cursor`) ignores only there. Entries are matched as exact strings, not validated — a typo is inert, never fatal.
 - The list only suppresses gap *reporting*. It never deletes anything and does not affect linking devkit-managed skills into the environments.
 
+## Replicate list
+
+`sync-skills.replicate` at the repo root lists skills that **another tool owns** — installed into the Claude Code user scope (`~/.claude/skills/<name>`) by, e.g., the `cbc` binary — that you want devkit to **fan out** to Codex and Cursor without importing or owning them. For each listed name with an installed owner copy, sync symlinks `~/.codex/skills/<name>` and `~/.cursor/skills/<name>` to the owner copy.
+
+- devkit does **not** import or manage these skills — the owning tool installs and updates them. Listing a skill here also suppresses the "installed but not in devkit" gap for it (no need to also add it to the ignore list).
+- The file is **gitignored**; entries are per-user. Only `sync-skills.replicate.example` is committed (copy it to start).
+- Format: one bare skill name per line; blank lines and `#` comments (whole-line or trailing) skipped.
+- If the owner copy isn't installed, the entry is **inert** — nothing happens. An empty or absent list is a complete no-op, so devkit has zero dependency on the owning tool.
+- A **real** (non-symlink) directory already at a target path is reported as a big gap, never clobbered.
+- **Caveat:** replicated skills get the symlink only — no generated Codex `agents/openai.yaml`. Codex still loads the skill; it just lacks the generated `interface:` metadata that devkit-owned skills carry.
+
 ## Policy
 
 - Small fixes are missing skill symlinks, stale symlink targets, and generated `agents/openai.yaml` drift.

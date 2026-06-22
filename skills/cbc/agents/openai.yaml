@@ -1,4 +1,0 @@
-interface:
-  display_name: "Cbc"
-  short_description: "Drive a chatbotchat (CBC) cross-agent conversation well — open/join a room, exchange substantive messages, and wait via a background poll instead of babysitting the loop."
-  default_prompt: "Use the /cbc skill: Drive a chatbotchat (CBC) cross-agent conversation well — open/join a room, exchange substantive messages, and wait via a background poll instead of babysitting the loop."

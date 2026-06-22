@@ -33,30 +33,48 @@ function isUserSkillName(name) {
   return !name.startsWith('.');
 }
 
-// Personal, per-user list of installed skills sync should NOT flag as "not present in
-// devkit/skills" (e.g. a separately-installed skill you don't want devkit to manage). The
-// file is gitignored — contents are user-specific and must never reach the public repo;
-// only sync-skills.ignore.example is committed. One entry per line; blank lines and `#`
-// comments (whole-line or trailing) are stripped. Each surviving entry is matched as an
-// exact string in syncInstalledSkillLinks — a bare skill name (ignored in every env) or
-// `env/name` (ignored only in that env). Entries are NOT validated: a malformed line that
-// matches nothing is simply inert, so a typo here never crashes sync.
-export function readIgnoreList(rootDir = ROOT_DIR) {
-  const ignorePath = path.join(rootDir, IGNORE_FILE);
-  if (!exists(ignorePath)) return [];
+const REPLICATE_FILE = 'sync-skills.replicate';
+
+// Read an optional, per-user list file (one entry per line; blank lines and `#` comments,
+// whole-line or trailing, are stripped). These files are gitignored — contents are
+// user-specific and must never reach the public repo; only the matching `.example` is
+// committed. A missing or unreadable file yields an empty list: this runs eagerly while
+// building the CLI options, so a throw would abort the whole sync run; an absent optional
+// list must degrade to "nothing configured", never crash. (exists() uses lstatSync, so a
+// dangling symlink or a directory at the path slips past it and readFileSync would throw.)
+function readOptionalListFile(rootDir, fileName) {
+  const listPath = path.join(rootDir, fileName);
+  if (!exists(listPath)) return [];
   let raw;
   try {
-    raw = fs.readFileSync(ignorePath, 'utf-8');
+    raw = fs.readFileSync(listPath, 'utf-8');
   } catch {
-    // exists() uses lstatSync, so a dangling symlink or a directory at the path slips past
-    // it and readFileSync throws. Since this runs eagerly while building the CLI options, a
-    // throw would abort the whole sync run — treat an unreadable optional file as empty.
     return [];
   }
   return raw
     .split('\n')
     .map(line => line.replace(/\s+#.*$/, '').trim()) // strip trailing inline comments
     .filter(line => line.length > 0 && !line.startsWith('#'));
+}
+
+// Personal, per-user list of installed skills sync should NOT flag as "not present in
+// devkit/skills" (e.g. a separately-installed skill you don't want devkit to manage). Each
+// surviving entry is matched as an exact string in syncInstalledSkillLinks — a bare skill
+// name (ignored in every env) or `env/name` (ignored only in that env). Entries are NOT
+// validated: a malformed line that matches nothing is simply inert, so a typo never crashes
+// sync. Only sync-skills.ignore.example is committed.
+export function readIgnoreList(rootDir = ROOT_DIR) {
+  return readOptionalListFile(rootDir, IGNORE_FILE);
+}
+
+// Personal, per-user list of skills OWNED by another tool (installed into the Claude Code
+// user scope by, e.g., the `cbc` binary) which devkit should REPLICATE out to the other AI
+// environments without importing or owning them. Each entry is a bare skill name; the owner
+// copy is `~/.claude/skills/<name>`. See syncReplicatedSkills. Only
+// sync-skills.replicate.example is committed; an empty/absent list is a complete no-op, so a
+// devkit install that never lists anything has zero dependency on the owning tool.
+export function readReplicateList(rootDir = ROOT_DIR) {
+  return readOptionalListFile(rootDir, REPLICATE_FILE);
 }
 
 function selectedEnvironmentEntries(environments = Object.keys(ENVIRONMENTS)) {
@@ -508,10 +526,116 @@ export function syncInstalledSkillLinks({
   return result;
 }
 
+// Skills OWNED by another tool live as a real directory in the Claude Code user scope
+// (~/.claude/skills/<name>) — that tool (e.g. the `cbc` binary) installs and updates them, NOT
+// devkit. This fans the owner copy OUT to the other AI environments by symlinking
+// ~/.{codex,cursor}/skills/<name> -> ~/.claude/skills/<name>, so a skill the owner ships once is
+// reachable from every agent without devkit importing or owning it.
+//
+// Deliberately NARROW vs syncInstalledSkillLinks: the link target is the owner's env dir, never
+// devkit/skills. We never overwrite a real directory at the destination (only ever a stale
+// symlink) — a real dir there is someone else's data, so it's reported as a bigGap, not clobbered.
+// If the owner copy is absent the whole entry is inert: this is what keeps devkit CBC-agnostic —
+// an empty replicate list, or a list naming skills the owning tool hasn't installed, does nothing.
+//
+// V1 caveat: replicated skills get the symlink only. They do NOT get a generated Codex
+// agents/openai.yaml (syncSkillMetadata runs over devkit/skills, which these are not in), so the
+// Codex `interface:` metadata devkit-owned skills carry is absent for replicated ones.
+export function syncReplicatedSkills({
+  rootDir = ROOT_DIR,
+  homeDir = process.env.HOME,
+  apply = false,
+  environments = Object.keys(ENVIRONMENTS),
+  replicateSkills = [],
+} = {}) {
+  const result = {
+    fixed: [],
+    current: [],
+    bigGaps: [],
+  };
+
+  const ownerParts = ENVIRONMENTS.claude;
+  // Replicate only to the SELECTED non-owner envs; the owner (claude) is the source, not a target.
+  const targetEntries = selectedEnvironmentEntries(environments)
+    .filter(([environment]) => environment !== 'claude');
+
+  for (const skillName of replicateSkills) {
+    if (!isUserSkillName(skillName)) {
+      result.bigGaps.push({ skill: skillName, reason: `invalid skill name: ${skillName}` });
+      continue;
+    }
+
+    const ownerPath = path.join(homeDir, ...ownerParts, skillName);
+    // exists() passes for a dangling symlink/non-dir, so gate on the SKILL.md itself: the owner
+    // copy must be a real installed skill before we point other envs at it.
+    if (!exists(path.join(ownerPath, 'SKILL.md'))) {
+      result.current.push({ skill: skillName, reason: 'owner copy not installed; nothing to replicate' });
+      continue;
+    }
+
+    for (const [environment, parts] of targetEntries) {
+      const envSkillsDir = path.join(homeDir, ...parts);
+      const destPath = path.join(envSkillsDir, skillName);
+
+      if (isCorrectSymlink(destPath, ownerPath)) {
+        result.current.push({ environment, skill: skillName });
+        continue;
+      }
+
+      if (exists(destPath)) {
+        const target = readSymlinkTarget(destPath);
+        if (target === null) {
+          // A real directory (or file) we did not create — never clobber it.
+          result.bigGaps.push({
+            environment,
+            skill: skillName,
+            reason: `${destPath} exists but is not a symlink`,
+          });
+          continue;
+        }
+        if (apply) {
+          try {
+            fs.rmSync(destPath, { force: true });
+            fs.symlinkSync(ownerPath, destPath);
+          } catch (error) {
+            result.bigGaps.push({
+              environment,
+              skill: skillName,
+              reason: `failed to relink stale symlink: ${error.message}`,
+            });
+            continue;
+          }
+        }
+        result.fixed.push({ environment, skill: skillName, reason: 'relinked to owner copy' });
+        continue;
+      }
+
+      if (apply) {
+        try {
+          fs.mkdirSync(envSkillsDir, { recursive: true });
+          fs.symlinkSync(ownerPath, destPath);
+        } catch (error) {
+          result.bigGaps.push({
+            environment,
+            skill: skillName,
+            reason: `failed to link replicated skill: ${error.message}`,
+          });
+          continue;
+        }
+      }
+      result.fixed.push({ environment, skill: skillName, reason: 'linked to owner copy' });
+    }
+  }
+
+  return result;
+}
+
 export function syncAllSkills(options = {}) {
   const imports = importExternalSkills(options);
   const importedSkillNames = imports.imported.map(item => item.skill);
   const metadata = syncSkillMetadata(options.rootDir, { apply: options.apply });
+  const replicateSkills = options.replicateSkills ?? [];
+  const replicate = syncReplicatedSkills({ ...options, replicateSkills });
   const links = syncInstalledSkillLinks({
     ...options,
     plannedRepoSkills: importedSkillNames,
@@ -522,6 +646,13 @@ export function syncAllSkills(options = {}) {
       ...(options.forceRelinkTargets ?? []),
       ...imports.imported.map(item => `${item.environment}/${item.skill}`),
     ],
+    // Replicated skills are real dirs in ~/.claude and symlinks in the other envs — none live in
+    // devkit/skills, so without this every replicated skill would be flagged as an "installed but
+    // not in devkit" gap in every env. Acknowledge them so links treats them as known-not-owned.
+    ignoredSkills: [
+      ...(options.ignoredSkills ?? []),
+      ...replicateSkills,
+    ],
   });
-  return { imports, metadata, links };
+  return { imports, metadata, replicate, links };
 }

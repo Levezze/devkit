@@ -4,3 +4,4 @@ node_modules/
 .env
 *.original.md
 sync-skills.ignore
+sync-skills.replicate
