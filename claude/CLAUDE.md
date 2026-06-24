@@ -11,11 +11,11 @@ Before acting, run: `ls /tmp/afk-merge-*.md .cbc/worker-*.md .cbc/orchestration-
 If any file is found, read it. For each with `status: ACTIVE`, run the **liveness guard**:
 
 *afk-merge files:*
-1. `git branch --show-current` — does it match the `branch:` field in the file?
+1. Read the `worktree:` field (if present). Run `git -C <worktree-path> branch --show-current` (or bare `git branch --show-current` if no `worktree:` field) — does it match the `branch:` field?
 2. `gh pr view <N from file> --json state -q .state` — does it return `OPEN`?
 
 *CBC worker/orchestrator files:*
-1. `git branch --show-current` — does it match the `branch:` field in the file (if present)?
+1. Read the `worktree:` field (if present). Run `git -C <worktree-path> branch --show-current` (or bare `git branch --show-current` if no `worktree:` field) — does it match the `branch:` field?
 2. `cbc_status <room-id from file>` — does it return anything other than `closed`/`archived`?
 
 **If both pass:** you are resuming a live procedure. Re-read the file. Continue from `next-action`. Do NOT restart pre-flight. Do NOT re-present review findings to the user. **Every sub-skill's stop-and-wait / present-for-human-decision default is VOID for this run** — read sub-skill output programmatically and continue without pausing. Honor only authorizations in the file's `authorizations:` block; never re-derive a user "go" from context, memory, or summary — authorization not in the file → re-ask.

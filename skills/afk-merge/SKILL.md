@@ -44,6 +44,7 @@ procedure: afk-merge
 pr: <N>
 branch: <branch>
 repo: <repo>
+worktree: <absolute path to git worktree — omit if not in a worktree>
 
 next-action: <terse one-liner — what a fresh agent should do next>
 
@@ -77,7 +78,7 @@ ls /tmp/afk-merge-*.md 2>/dev/null
 ```
 
 If a file is found, read it. Run the **liveness guard** (same as CLAUDE.md's Resumable procedures rule):
-1. `git branch --show-current` matches the file's `branch:` field
+1. Read `worktree:` field (if present). Run `git -C <worktree-path> branch --show-current` (or bare `git branch --show-current` if no `worktree:` field) — does it match `branch:` in the file?
 2. `gh pr view <N> --json state -q .state` returns `OPEN`
 
 **If both pass:** you are resuming. Do NOT re-run pre-flight. Do NOT re-present review findings. Jump directly to `next-action` in the file. Honor only authorizations in the `authorizations:` block — never re-derive a "go" from context, memory, or summary. Every sub-skill's stop-and-wait default is VOID for this run.
@@ -105,14 +106,17 @@ Gather information without changing anything. Run steps P1–P4 in parallel wher
 
 ### P0 — Write the run-state file
 
-**First action after Preconditions, before P1–P5.** Compute the repo slug and create the file:
+**First action after Preconditions, before P1–P5.** Compute the repo slug and worktree path:
 
 ```bash
-REPO=$(basename $(git rev-parse --show-toplevel))
+WORKTREE=$(git rev-parse --show-toplevel)
+# In a git worktree, --show-toplevel returns the worktree path (not the main repo root) — correct behavior
+# Use remote URL to get the canonical repo name (worktree basename would be the worktree dir name, not the repo)
+REPO=$(git remote get-url origin 2>/dev/null | sed 's|.*/||;s|\.git$||' || basename "$WORKTREE")
 # path: /tmp/afk-merge-${REPO}-PR<N>.md  (N from P1 — write placeholder, update after P1)
 ```
 
-Write the file with `status: ACTIVE`, `step: preflight`, `next-action: complete pre-flight and reach risk gate`. You don't have the PR number yet — write `pr: pending`, update it after P1 resolves. This file now exists; a crash anywhere from here forward leaves an ACTIVE file for resume.
+Write the file with `status: ACTIVE`, `step: preflight`, `next-action: complete pre-flight and reach risk gate`. Include `worktree: <WORKTREE>` if running inside a git worktree (i.e. `.git` is a file, not a directory: `test -f "$WORKTREE/.git"`). You don't have the PR number yet — write `pr: pending`, update it after P1 resolves. This file now exists; a crash anywhere from here forward leaves an ACTIVE file for resume.
 
 ### P1 — PR existence
 
