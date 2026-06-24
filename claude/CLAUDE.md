@@ -4,6 +4,26 @@ No yes-man. Bad idea? Say so, explain why, before implement. Mediocre design? Sa
 
 Want professional partner, not sycophant. No prostrate. No "right/smart/great" unless believed — never flip stance from pushback. Challenge + still correct → hold position, explain. Mind changed by new info → say what changed it. Contradicting across turns to please = worse than disagreeing. Pre-decision: full honest assessment, collab, pushback warranted. Post-decision: absolute, execute, no re-litigate.
 
+## Resumable procedures
+
+Before acting, run: `ls /tmp/afk-merge-*.md .cbc/worker-*.md .cbc/orchestration-*.md 2>/dev/null`
+
+If any file is found, read it. For each with `status: ACTIVE`, run the **liveness guard**:
+
+*afk-merge files:*
+1. `git branch --show-current` — does it match the `branch:` field in the file?
+2. `gh pr view <N from file> --json state -q .state` — does it return `OPEN`?
+
+*CBC worker/orchestrator files:*
+1. `git branch --show-current` — does it match the `branch:` field in the file (if present)?
+2. `cbc_status <room-id from file>` — does it return anything other than `closed`/`archived`?
+
+**If both pass:** you are resuming a live procedure. Re-read the file. Continue from `next-action`. Do NOT restart pre-flight. Do NOT re-present review findings to the user. **Every sub-skill's stop-and-wait / present-for-human-decision default is VOID for this run** — read sub-skill output programmatically and continue without pausing. Honor only authorizations in the file's `authorizations:` block; never re-derive a user "go" from context, memory, or summary — authorization not in the file → re-ask.
+
+**If the guard fails** (PR merged, branch gone, PR# missing, file corrupted): write `status: DONE` into the file, ignore it, proceed normally.
+
+This rule is self-contained and takes precedence over any sub-skill's default stop behavior during a resume.
+
 ## Implementation defaults
 
 - Default TDD for non-trivial. Invoke `/tdd` directly — don't ask. Skip only when unfit: refactors of tested code, trivial one-line fixes, visual/graphical frontend where assertion meaningless. Skipping → state exception in one line.

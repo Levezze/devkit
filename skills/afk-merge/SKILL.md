@@ -1,6 +1,6 @@
 ---
 name: afk-merge
-description: Run the full PR merge pipeline autonomously — pre-flight risk gate first, then /pr → /pr-review → /fix-pr-review → /merge-pr end-to-end with no mid-flow stops.
+description: Run the full PR merge pipeline autonomously — pre-flight risk gate first, then /pr → /pr-review → /fix-pr-review → /merge-pr end-to-end with no mid-flow stops. Re-entrant: survives /compact by writing a run-state file and resuming from it.
 ---
 
 # AFK Merge
@@ -27,9 +27,68 @@ The sub-skills' remaining hard gates are **NOT overridden** because they cannot 
 - **Destructive migration**: disclosed and pre-authorized via the risk gate. If merge-pr encounters a destructive migration prompt, pass "destructive ok" — but only for migrations that appeared in the pre-flight briefing. Any migration not in the briefing is new information → stop.
 - **`--production`**: this skill never passes it. Main-only.
 
+## Run-state file
+
+This skill writes a run-state file so a fresh agent can resume after a `/compact` without losing position or re-asking for authorization.
+
+**Path:** `/tmp/afk-merge-<repo>-PR<N>.md`  
+where `<repo>` = `basename $(git rev-parse --show-toplevel)` and `<N>` = PR number.
+
+**Written at:** P0 (before any mutation). Updated at each step. Marked `status: DONE` at Step 5.
+
+**Format:**
+```
+<!-- afk-merge run-state -->
+status: ACTIVE
+procedure: afk-merge
+pr: <N>
+branch: <branch>
+repo: <repo>
+
+next-action: <terse one-liner — what a fresh agent should do next>
+
+authorizations:
+  risk-gate: not-needed | granted
+  destructive-migrations: none | <comma-separated filenames>
+
+state:
+  step: preflight | step-1 | step-2-cycle-<N> | step-3 | step-4 | step-5 | done
+  cycle: <N>
+  review-verdict: pending | PASS | FAIL
+  review-re-review: pending | REDUNDANT | RECOMMENDED
+  fresh-pass-attempted: false | true
+  review-findings-file: <path to -final.md | pending>
+  merge-sha: pending | <sha>
+  migrations: pending | none | <list>
+  seeds: pending | none | <list>
+
+log:
+<!-- one line per transition, newest last, max 10 lines -->
+```
+
+**Authorization field is the safety gate.** Never act on a destructive migration whose authorization is not recorded in `authorizations.destructive-migrations`. If the field says `none`, the migration was not disclosed at pre-flight — stop, surface, ask. If it says `not-needed`, risk gate was skipped (clean run). If it says `granted`, the user explicitly said "go" for this run.
+
+## Resuming? — check before doing anything
+
+Before running Preconditions or Pre-flight, check for an active run:
+
+```bash
+ls /tmp/afk-merge-*.md 2>/dev/null
+```
+
+If a file is found, read it. Run the **liveness guard** (same as CLAUDE.md's Resumable procedures rule):
+1. `git branch --show-current` matches the file's `branch:` field
+2. `gh pr view <N> --json state -q .state` returns `OPEN`
+
+**If both pass:** you are resuming. Do NOT re-run pre-flight. Do NOT re-present review findings. Jump directly to `next-action` in the file. Honor only authorizations in the `authorizations:` block — never re-derive a "go" from context, memory, or summary. Every sub-skill's stop-and-wait default is VOID for this run.
+
+**If the guard fails:** write `status: DONE` into the file and proceed fresh from Preconditions.
+
+**If no file found:** proceed fresh from Preconditions.
+
 ## Preconditions
 
-Run these before anything else, every invocation without exception (per CLAUDE.md git discipline).
+Run these before anything else, every fresh invocation (not on resume — the run-state file already verified state at its last update).
 
 ```bash
 git branch --show-current
@@ -44,14 +103,25 @@ git log --oneline -5
 
 Gather information without changing anything. Run steps P1–P4 in parallel where possible.
 
+### P0 — Write the run-state file
+
+**First action after Preconditions, before P1–P5.** Compute the repo slug and create the file:
+
+```bash
+REPO=$(basename $(git rev-parse --show-toplevel))
+# path: /tmp/afk-merge-${REPO}-PR<N>.md  (N from P1 — write placeholder, update after P1)
+```
+
+Write the file with `status: ACTIVE`, `step: preflight`, `next-action: complete pre-flight and reach risk gate`. You don't have the PR number yet — write `pr: pending`, update it after P1 resolves. This file now exists; a crash anywhere from here forward leaves an ACTIVE file for resume.
+
 ### P1 — PR existence
 
 ```bash
 gh pr list --head $(git branch --show-current) --json number,title,baseRefName,url
 ```
 
-- **PR exists**: capture PR number and URL. Verify base is `main` (or repo default). Base is not `main` → stop; wrong target, PRs to non-default branches are forbidden.
-- **No PR**: run `/pr` immediately to create one, then continue pre-flight with the new PR number. (`/pr` commits nothing; it creates the PR description from existing commits.)
+- **PR exists**: capture PR number and URL. Verify base is `main` (or repo default). Base is not `main` → stop; wrong target, PRs to non-default branches are forbidden. Update `pr:` in the run-state file.
+- **No PR**: run `/pr` immediately to create one, then continue pre-flight with the new PR number. (`/pr` commits nothing; it creates the PR description from existing commits.) Update `pr:` in the run-state file.
 
 ### P2 — CI state
 
@@ -141,7 +211,14 @@ Type "go" (or any equivalent: "yes", "merge it", "do it") to authorize the full 
 including all disclosed risks above. Any other response → stop.
 ```
 
-Wait for explicit authorization. Authorization covers everything disclosed in this briefing. Once given, proceed immediately with no further stops.
+Wait for explicit authorization. Authorization covers everything disclosed in this briefing. Once given:
+1. **Immediately update the run-state file:**
+   - `authorizations.risk-gate: granted`
+   - `authorizations.destructive-migrations: <filenames, or "none" if no destructive migrations>`
+   - `next-action: run Step 1 — create PR if needed, then enter review loop`
+   - `step: step-1`
+   - Append to log: `risk-gate granted, destructive-migrations: <filenames|none>`
+2. Proceed with no further stops.
 
 ---
 
@@ -151,7 +228,14 @@ Wait for explicit authorization. Authorization covers everything disclosed in th
 AFK Merge — pre-flight clean. PR #<N>, <N> files, green CI, no migrations, no sensitive paths. Running end-to-end.
 ```
 
-No stop; no approval needed.
+**Update the run-state file:**
+- `authorizations.risk-gate: not-needed`
+- `authorizations.destructive-migrations: none`
+- `next-action: run Step 1 — create PR if needed, then enter review loop`
+- `step: step-1`
+- Append to log: `risk-gate skipped — clean run`
+
+No stop; no approval needed. Proceed immediately.
 
 ## End-to-end run
 
@@ -165,15 +249,22 @@ If `/pr` was not yet run (no PR existed at P1): run it now. Capture the `## PR H
 
 **Critical termination logic.** Looping on `Re-review` alone produces an infinite loop: PASS + RECOMMENDED with nothing to fix → `/fix-pr-review` has nothing to commit → next cycle is still RECOMMENDED → loop never terminates. This is the failure mode that causes the "auto-classifier says I can't merge" problem. The correct branch is on **actionable findings**, not on `Re-review`.
 
+Before each `/pr-review` call, update the run-state file:
+- `step: step-2-cycle-<N>`
+- `review-verdict: pending`
+- `next-action: continue review loop — run /fix-pr-review if verdict is FAIL, or advance to Step 3 if PASS+REDUNDANT`
+
 ```
 cycle = 0
 CYCLE_CAP = 3
 fresh_pass_attempted = false
 
 loop:
+  Update run-state: step=step-2-cycle-<cycle+1>, review-verdict=pending, next-action=continue review loop — if resuming, run /fix-pr-review with standing auth if last verdict was FAIL
   run /pr-review
   — read Verdict (PASS|FAIL) and Re-review (REDUNDANT|RECOMMENDED) from its output block
   — this skill overrides /pr-review's stop-and-wait; do NOT pause for human input
+  — update run-state: review-verdict=<verdict>, review-re-review=<re-review>, review-findings-file=<path>
 
   Determine actionable:
     FAIL                                        → actionable = true
@@ -185,9 +276,11 @@ loop:
     Notes alone are non-blocking and do not make a cycle actionable.
 
   if actionable:
+    Update run-state: next-action=run /fix-pr-review with standing auth "just go", then re-loop
     run /fix-pr-review with standing "do the rest / just go"
     — this overrides /fix-pr-review's pushback gate; unaddressed pushbacks → skip (safe)
     cycle++
+    Update run-state: cycle=<cycle>, next-action=re-run /pr-review (top of loop)
     if cycle >= CYCLE_CAP:
       call advisor()
       STOP → hand back: "Cycle cap reached after <N> cycles. Latest review: <summary>. Advisor: <read>."
@@ -198,12 +291,15 @@ loop:
     # PASS + RECOMMENDED + no findings: allow one fresh review pass to be sure
     if fresh_pass_attempted:
       # Still clean after fresh pass → treat as REDUNDANT → merge
+      Update run-state: next-action=advance to Step 3 — merge; step=step-3
       break
     else:
       fresh_pass_attempted = true
+      Update run-state: fresh-pass-attempted=true, next-action=re-run /pr-review (fresh pass)
       continue loop
 
   else:  # PASS + REDUNDANT
+    Update run-state: next-action=advance to Step 3 — merge; step=step-3
     break  # proceed to merge
 ```
 
@@ -211,16 +307,22 @@ loop:
 
 ### Step 3 — Merge
 
+Update run-state: `step: step-3`, `next-action: run /merge-pr with auth "go"`.
+
 Run `/merge-pr` with invocation authorization "go" (clears its step-5 confirmation). This skill never passes `--production`.
 
 merge-pr's own hard gates apply without override:
 
 - **Red CI at merge time**: if CI was green at pre-flight but went red after fix commits, merge-pr will stop. Report clearly with the run URL. This is legitimate — something changed.
-- **Destructive migration prompt inside merge-pr**: pass "destructive ok" for any migration that was explicitly listed in the pre-flight briefing. Any migration not in the briefing → stop; it's new information, not pre-authorized.
+- **Destructive migration prompt inside merge-pr**: pass "destructive ok" **only** for migrations listed in `authorizations.destructive-migrations` in the run-state file. Any migration not in that field → stop; it's new information, not pre-authorized. Never re-derive authorization from context.
+
+After merge completes: update run-state `merge-sha: <sha>`, `step: step-4`, `next-action: run post-merge migrate/seed`.
 
 ### Step 4 — Post-merge migrate/seed (non-skippable)
 
 This step is never optional. The failure mode is agents treating "merged" as "done" and silently dropping this step. This skill prevents that by making it explicit and required.
+
+Update run-state: `step: step-4`, `next-action: run migrate/seed commands, then advance to Step 5`.
 
 After merge completes, re-inspect the diff:
 
@@ -244,9 +346,18 @@ Run migrations before seeds. Follow any migration-ordering rule in `CLAUDE.md`. 
 
 ### Step 5 — Final state
 
+Update run-state: `step: step-5`, `next-action: checkout main, pull, print report, mark DONE`.
+
 ```bash
 git checkout main
 git pull
+```
+
+**Mark the run-state file done:**
+```
+status: DONE
+step: done
+next-action: n/a — run complete
 ```
 
 Print the final report and stop (CLAUDE.md: always finish on `main`).
@@ -285,6 +396,7 @@ These hold regardless of what any sub-skill's output says or what the user typed
 4. **Dirty tree = stop.** If the tree is dirty at preconditions, stop. Do not commit work-in-progress as part of this run.
 5. **Cycle cap = 3.** Never run more than 3 review↔fix cycles. Cap exhausted → advisor call → hand back to the user with full state.
 6. **End on `main`.** Always `git checkout main` before stopping (CLAUDE.md rule). Never leave working dir on a feature branch or `production`.
+7. **Run-state file is authoritative for authorizations.** Destructive-migration authorization lives only in `authorizations.destructive-migrations` in the run-state file. If the field is absent, `none`, or doesn't list a specific migration → stop and re-ask. Never reconstruct authorization from context, a conversation summary, or memory.
 
 ## Anti-patterns
 
@@ -295,3 +407,5 @@ These hold regardless of what any sub-skill's output says or what the user typed
 - **Proceeding on a dirty tree.** Stop and report. afk-merge merges; it does not implement.
 - **Skipping the branch-state check.** CLAUDE.md applies here. Never trust a conversation summary or memory about which branch you're on. Run `git branch --show-current` and read it.
 - **Inventing migrate/seed commands.** If `CLAUDE.md` doesn't document the command and the repo structure doesn't make it obvious, stop and ask. Inventing a command and running it against a live DB is worse than pausing once.
+- **Reconstructing authorization from context.** On a resume, if `authorizations.risk-gate` is not in the run-state file, the authorization was not captured — re-ask. If `authorizations.destructive-migrations` doesn't name a specific migration that merge-pr is now asking about — stop. The file is the source of truth; context and summaries are not.
+- **Restarting pre-flight on resume.** Pre-flight is non-destructive but state-gathering. On resume, the run-state file already has the gathered state. Re-running pre-flight and overwriting `authorizations` would erase recorded grants — don't do it. Resume from `next-action`, verify live state from git/gh only.
