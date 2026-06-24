@@ -1,0 +1,4 @@
+interface:
+  display_name: "Afk Merge"
+  short_description: "Run the full PR merge pipeline autonomously — pre-flight risk gate first, then /pr → /pr-review → /fix-pr-review → /merge-pr end-to-end with no mid-flow stops."
+  default_prompt: "Use the /afk-merge skill: Run the full PR merge pipeline autonomously — pre-flight risk gate first, then /pr → /pr-review → /fix-pr-review → /merge-pr end-to-end with no mid-flow stops."
