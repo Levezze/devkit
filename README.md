@@ -127,6 +127,56 @@ effort: xhigh
 
 As of the current Claude Code docs, `best` resolves to the most capable available model and is currently equivalent to `opus`; on Anthropic API, `opus` resolves to Opus 4.7 on Claude Code v2.1.111 or later. `xhigh` is the recommended default effort level for Opus 4.7. Use `max` only when you deliberately want unconstrained deeper reasoning for the current session.
 
+#### Auto-compact Opus at ~200k
+
+Claude Code ships Opus on a 1M context window, so auto-compact only fires near
+1M tokens — a 200k-sized conversation never compacts and silently grows. If you
+want Opus to auto-compact at ~200k instead, this option sets it up.
+
+**How the trigger works.** Claude Code fires auto-compact when
+`tokens >= window - 33000`, where `window = min(modelMax, autoCompactWindow)`.
+Setting `autoCompactWindow` to **233000** gives `233000 - 33000 = 200000` — so
+compaction kicks in at ~200k. The `33000` (a 20k output buffer + a 13k floor) is
+hardcoded in Claude Code; it is the reason you cannot compact at *exactly* the
+ceiling. Mechanism decoded from the Claude Code bundle — see
+[`docs/adr/0002-opus-auto-compact-at-200k.md`](docs/adr/0002-opus-auto-compact-at-200k.md).
+
+**Keep the 1M model on.** The window is clamped to `min(modelMax, autoCompactWindow)`.
+To reach 233000 you need `modelMax = 1,000,000`, i.e. the normal 1M Opus. So this
+option does **not** set `CLAUDE_CODE_DISABLE_1M_CONTEXT` — and if an older devkit
+version left that flag in your settings, enabling this option removes it (the flag
+caps `modelMax` at 200000, which would drop the trigger back to ~167k).
+
+`/context` will still show a 1M ceiling — that's expected. The conversation just
+compacts at ~200k, leaving ~800k of headroom; cost is unchanged because input
+stays around 200k and never enters the 1M premium tier.
+
+> **Requires 1M-context access.** If your account does not have Claude Code's 1M
+> context, `modelMax` is 200000, the window clamps to `min(200000, 233000) = 200000`,
+> and the trigger lands at ~167k instead of 200k. It still compacts — just a bit
+> earlier. There is no way to push it past `modelMax - 33000`.
+
+The installer offers this as an **opt-in, off by default**. When Claude's
+`settings.json` is part of the install, it asks:
+
+```text
+? Auto-compact Opus at ~200k tokens (sets autoCompactWindow=233000)? (y/N)
+```
+
+Answering yes patches `~/.claude/settings.json` to add:
+
+```json
+"autoCompactWindow": 233000
+```
+
+The patch is idempotent and preserves your other settings (and strips a stale
+`CLAUDE_CODE_DISABLE_1M_CONTEXT` env flag if present). Re-running the installer and
+answering no removes the key again — but only when it still equals `233000`, so a
+custom value you set yourself is never clobbered. For non-interactive installs, set
+`DEVKIT_OPUS_200K=1` (or `0`) to skip the prompt. You can also set
+`"autoCompactWindow"` by hand at any time. Restart Claude Code to apply — settings
+are read at launch.
+
 ## Source Of Truth
 
 The repo layout is intentionally small:

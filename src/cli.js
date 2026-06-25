@@ -1,7 +1,7 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { aiEnvironments, packages, modes, getFilesForPackages, getAllItems } from './packages.js';
-import { installFiles } from './installer.js';
+import { installFiles, applyOpus200kPreference, currentOpus200kPreference } from './installer.js';
 
 // Print header
 function printHeader() {
@@ -155,6 +155,26 @@ async function selectItems(selectedEnvironments, aiOnly) {
   return selectedItems;
 }
 
+// Opt-in (off by default): make Opus auto-compact at ~200k by setting
+// "autoCompactWindow": 233000 in settings.json (keeps the 1M model so the window
+// can reach it). Only offered when Claude's settings.json is part of the install.
+async function selectOpus200k() {
+  if (process.env.DEVKIT_OPUS_200K === '1') return true;
+  if (process.env.DEVKIT_OPUS_200K === '0') return false;
+  // Non-interactive (CI/headless/piped): never block on stdin — keep current state.
+  if (!process.stdin.isTTY) return currentOpus200kPreference();
+
+  const { autoCompact200k } = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'autoCompact200k',
+      message: 'Auto-compact Opus at ~200k tokens (sets autoCompactWindow=233000)?',
+      default: currentOpus200kPreference()
+    }
+  ]);
+  return autoCompact200k;
+}
+
 // Confirm installation
 async function confirmInstall(fileCount) {
   const { confirm } = await inquirer.prompt([
@@ -214,6 +234,10 @@ export async function runCLI() {
       }
     }
 
+    // Opus auto-compact-at-200k preference — only relevant when Claude settings.json is installed
+    const claudeSettingsInstalled = filesToInstall.some(file => file.dest === '~/.claude/settings.json');
+    const opus200k = claudeSettingsInstalled ? await selectOpus200k() : false;
+
     // Show summary
     console.log('');
     console.log(chalk.cyan(`Environments: ${selectedEnvironments.map(env => aiEnvironments[env].name).join(', ')}`));
@@ -228,6 +252,18 @@ export async function runCLI() {
 
     // Install
     await installFiles(filesToInstall);
+
+    // Apply Opus auto-compact-at-200k preference after settings.json is in place (idempotent)
+    if (claudeSettingsInstalled) {
+      const result = applyOpus200kPreference(opus200k);
+      if (result.changed) {
+        console.log(chalk.green(opus200k
+          ? '  ✓ Opus set to auto-compact at ~200k (autoCompactWindow=233000)'
+          : '  ✓ Opus auto-compact override removed (back to default)'));
+      } else if (opus200k && result.reason !== 'already') {
+        console.log(chalk.yellow(`  ! Could not set auto-compact preference (${result.reason}); add "autoCompactWindow": 233000 to ~/.claude/settings.json by hand`));
+      }
+    }
 
   } catch (error) {
     if (error.name === 'ExitPromptError') {
