@@ -17,6 +17,83 @@ const API_KEYS = {
   },
 };
 
+// settings.json key that makes Opus auto-compact at ~200k. Claude Code triggers
+// auto-compact at (window - 33000), where window = min(modelMax, autoCompactWindow).
+// 233000 - 33000 = 200000. This needs the 1M model (modelMax = 1,000,000) so the
+// window can actually reach 233000 — hence we must NOT also disable the 1M context.
+// See README "Auto-compact at 200k".
+export const AUTO_COMPACT_WINDOW_KEY = 'autoCompactWindow';
+export const AUTO_COMPACT_WINDOW_VALUE = 233000;
+
+// Legacy env flag from older devkit versions. It forced the 200k Opus variant
+// (modelMax = 200000), which caps the auto-compact trigger at ~167k — the
+// opposite of what we want now. The toggle removes it on enable (migration).
+export const DISABLE_1M_KEY = 'CLAUDE_CODE_DISABLE_1M_CONTEXT';
+
+// Pure toggle: returns { settings, changed }. enabled=true sets autoCompactWindow
+// to our sentinel AND strips any stale DISABLE_1M env flag; enabled=false removes
+// the key only when it still equals our sentinel (never clobbers a user's own
+// custom window). Never mutates the input.
+export function withAutoCompact200kPreference(settings, enabled) {
+  if (enabled) {
+    const hasKey = settings[AUTO_COMPACT_WINDOW_KEY] === AUTO_COMPACT_WINDOW_VALUE;
+    const env = { ...(settings.env ?? {}) };
+    const hadStaleFlag = env[DISABLE_1M_KEY] !== undefined;
+    if (hadStaleFlag) delete env[DISABLE_1M_KEY];
+
+    if (hasKey && !hadStaleFlag) return { settings, changed: false };
+
+    const next = { ...settings, [AUTO_COMPACT_WINDOW_KEY]: AUTO_COMPACT_WINDOW_VALUE };
+    if (settings.env !== undefined) {
+      if (Object.keys(env).length) next.env = env;
+      else delete next.env;
+    }
+    return { settings: next, changed: true };
+  }
+
+  // disable: only remove our own sentinel value
+  if (settings[AUTO_COMPACT_WINDOW_KEY] === AUTO_COMPACT_WINDOW_VALUE) {
+    const next = { ...settings };
+    delete next[AUTO_COMPACT_WINDOW_KEY];
+    return { settings: next, changed: true };
+  }
+  return { settings, changed: false };
+}
+
+// Read the current preference from the installed settings.json (used to default
+// the installer prompt so a re-run never silently strips an existing override).
+export function currentOpus200kPreference() {
+  const settingsPath = expandPath('~/.claude/settings.json');
+  if (!fileExists(settingsPath)) return false;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+    return parsed[AUTO_COMPACT_WINDOW_KEY] === AUTO_COMPACT_WINDOW_VALUE;
+  } catch {
+    return false;
+  }
+}
+
+// IO wrapper: patch the installed ~/.claude/settings.json in place. Idempotent —
+// a no-op when the file is already in the desired state (so answering "no" on a
+// fresh install never reformats the freshly-copied template).
+export function applyOpus200kPreference(enabled) {
+  const settingsPath = expandPath('~/.claude/settings.json');
+  if (!fileExists(settingsPath)) return { changed: false, reason: 'no-settings' };
+
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+  } catch (error) {
+    return { changed: false, reason: 'parse-error', error: error.message };
+  }
+
+  const { settings, changed } = withAutoCompact200kPreference(parsed, enabled);
+  if (changed) {
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf-8');
+  }
+  return { changed, reason: changed ? 'written' : 'already' };
+}
+
 // Load .env file into a key-value map
 function loadEnv() {
   const envPath = path.join(ROOT_DIR, '.env');
