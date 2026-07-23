@@ -60,6 +60,28 @@ Before doing anything, sniff the repo to know which commands map to which gates.
 
 7. **Checkout main (or default branch) and pull.** `git checkout <default> && git pull`.
 
+   **Then refresh the ROOT repo's default branch — non-skippable.** `git checkout <default> && git pull` acts on the CURRENT working tree. When you are in a git worktree that is the worktree, NOT the root repo — `git rev-parse --show-toplevel` returns the worktree path, which is exactly why this step is missed. The root is where subagents, shell tools, and greps default to, so a stale root main silently poisons every later branch (wrong base) and every absence claim ("nothing calls this", "that file doesn't exist") made from it. Measured 2026-07-22 in mvp-client: the root's `main` was **116 commits** behind while origin was 77 releases ahead, and a file merged and live on production read as simply missing.
+
+   Run this from anywhere in the repo — it is fetch + fast-forward only, mutates nothing else, and exits 0 in every skip case so it can never fail the pipeline:
+
+   ```bash
+   ROOT=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+   DEFAULT=$(git -C "$ROOT" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||'); DEFAULT=${DEFAULT:-main}
+   git -C "$ROOT" fetch origin --quiet
+   BEHIND=$(git -C "$ROOT" rev-list --count "$DEFAULT..origin/$DEFAULT" 2>/dev/null || echo 0)
+   HOLDER=$(git -C "$ROOT" worktree list | awk -v b="[$DEFAULT]" '$NF==b{print $1}')
+   if [ "$BEHIND" = "0" ]; then echo "root-refresh: $ROOT $DEFAULT already current"
+   elif [ "$HOLDER" != "$ROOT" ]; then echo "root-refresh: BLOCKED — $DEFAULT is $BEHIND behind but held by ${HOLDER:-no worktree}, not the root"
+   elif ! git -C "$ROOT" merge-base --is-ancestor "$DEFAULT" "origin/$DEFAULT"; then echo "root-refresh: BLOCKED — $DEFAULT diverged (local commits)"
+   else git -C "$ROOT" merge --ff-only "origin/$DEFAULT" --quiet && echo "root-refresh: fast-forwarded $BEHIND commit(s)"; fi
+   ```
+
+   **Never force past a BLOCKED result** — surface it to the user instead. The two blocked cases are diagnoses, not errors:
+   - *held by another worktree* — a branch checked out anywhere cannot fast-forward, so `main` has been unable to advance from ANY vantage for as long as that worktree existed. Usual cause: a worktree created without its branch (`git worktree add <path>` with no `-b`), which grabs `main`. The tell is a worktree whose directory name doesn't match its `[branch]` in `git worktree list`. Fix is `git worktree remove` once confirmed clean and zero commits ahead — then re-run.
+   - *diverged* — someone committed to the root's `main` directly. Do not merge or rebase it silently; that is the user's call.
+
+   Report the one-line result in the final report either way.
+
 8. **Detect post-merge work.**
 
    The PR's diff is the source of truth. `gh pr diff <N> --name-only` then map paths to actions:
@@ -95,7 +117,7 @@ Before doing anything, sniff the repo to know which commands map to which gates.
     - **E2E** (if a deployed e2e harness exists): run it. Detection: `make test-e2e` / `make e2e` target, `pnpm test:e2e:deployed` script, `pytest tests/e2e`, `playwright test --config=e2e.deployed.config.ts`. **State of dev server**: if the e2e harness expects a local dev server, restart it cleanly first (`pnpm kill && pnpm dev` or equivalent) — stale dev servers run old code on hot-reload frameworks (tsx watch, Next dev) and produce false greens.
     - If no e2e harness exists, smoke is the gate. Say so explicitly: "no e2e harness configured, smoke = `curl /health` = OK".
 
-11. **Final state.** Kill any background dev server. **Confirm working dir is on the default branch** (`git rev-parse --abbrev-ref HEAD`). Report the merge SHA, the deploy ID (Cloud Build / Actions run / Vercel deployment), and the smoke/e2e result.
+11. **Final state.** Kill any background dev server. **Confirm working dir is on the default branch** (`git rev-parse --abbrev-ref HEAD`). Report the merge SHA, the deploy ID (Cloud Build / Actions run / Vercel deployment), the smoke/e2e result, and the **step-7 root-refresh line** (`already current` / `fast-forwarded N` / `BLOCKED — …`). A BLOCKED root-refresh is a reportable finding, not a footnote — it means every future branch off this repo starts from a stale base until someone clears it.
 
 ## Mode B — `--production` adds a forward-merge
 
@@ -128,7 +150,7 @@ After Mode A's step 11 completes successfully, perform the forward-merge:
 
 18. **Prod smoke.** Hit the prod health endpoint. Confirm HTTP 200 and the response indicates `env: production` (or equivalent). Confirm at least one gated endpoint behaves correctly under the prod auth layer (e.g. returns 401, not 500 — meaning the auth code is wired, not crashed).
 
-19. **Return to default branch.** `git checkout main` (or whichever is default). NEVER leave the working directory on `production`. If you do, future commits in this session may accidentally land on prod.
+19. **Return to default branch.** `git checkout main` (or whichever is default). NEVER leave the working directory on `production`. If you do, future commits in this session may accidentally land on prod. **Then re-run the step-7 root-refresh block** — the promotion moved `production`, but release automation (release-please and friends) may also have advanced `main` since step 7, so the root can be stale again by the time a prod run finishes.
 
 20. **Final report.** Summarize: merge SHA on main, merge SHA on production, both deploy IDs, prod migration ID if applied, e2e/smoke result.
 

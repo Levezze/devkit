@@ -350,12 +350,37 @@ Run migrations before seeds. Follow any migration-ordering rule in `CLAUDE.md`. 
 
 ### Step 5 — Final state
 
-Update run-state: `step: step-5`, `next-action: checkout main, pull, print report, mark DONE`.
+Update run-state: `step: step-5`, `next-action: refresh root main, settle working dir, print report, mark DONE`.
+
+**5a. Refresh the ROOT repo's default branch — non-skippable.** This is a different tree from the one you are standing in. `git rev-parse --show-toplevel` returns the *worktree*, so a plain `git checkout main && git pull` never touches the root — which is where subagents, shell tools, and greps all default to. A stale root `main` silently poisons every later branch (wrong base) and every absence claim made from it. Measured 2026-07-22 in mvp-client: root `main` was **116 commits** behind, and a file merged and live on production read as missing.
+
+Fetch + fast-forward only; exits 0 in every skip case so it can never fail the run:
 
 ```bash
-git checkout main
-git pull
+ROOT=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+DEFAULT=$(git -C "$ROOT" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||'); DEFAULT=${DEFAULT:-main}
+git -C "$ROOT" fetch origin --quiet
+BEHIND=$(git -C "$ROOT" rev-list --count "$DEFAULT..origin/$DEFAULT" 2>/dev/null || echo 0)
+HOLDER=$(git -C "$ROOT" worktree list | awk -v b="[$DEFAULT]" '$NF==b{print $1}')
+if [ "$BEHIND" = "0" ]; then echo "root-refresh: $ROOT $DEFAULT already current"
+elif [ "$HOLDER" != "$ROOT" ]; then echo "root-refresh: BLOCKED — $DEFAULT is $BEHIND behind but held by ${HOLDER:-no worktree}, not the root"
+elif ! git -C "$ROOT" merge-base --is-ancestor "$DEFAULT" "origin/$DEFAULT"; then echo "root-refresh: BLOCKED — $DEFAULT diverged (local commits)"
+else git -C "$ROOT" merge --ff-only "origin/$DEFAULT" --quiet && echo "root-refresh: fast-forwarded $BEHIND commit(s)"; fi
 ```
+
+**Never force past BLOCKED** — report it. *Held by another worktree* means `main` cannot fast-forward from ANY vantage until that worktree is cleared; the usual cause is a worktree created without its branch (`git worktree add <path>` with no `-b`), which grabs `main`. The tell is a worktree whose directory name doesn't match its `[branch]`. *Diverged* means someone committed to root `main` directly — the user's call, never silently merged.
+
+**5b. Settle the working directory.** Do NOT blindly `git checkout main` — **in a worktree that fails** (`fatal: 'main' is already used by worktree at …`), because a branch can be checked out once per repo and the root normally holds `main`. Branch on where you are:
+
+```bash
+if [ "$(git rev-parse --show-toplevel)" = "$ROOT" ]; then
+  git checkout "$DEFAULT" && git pull --ff-only     # in the root: settle onto the default branch
+else
+  echo "in worktree $(git rev-parse --show-toplevel) — staying on $(git branch --show-current); root $DEFAULT is the canonical checkout"
+fi
+```
+
+Staying on the feature branch inside your own worktree is correct and is NOT a violation of the always-finish-on-main rule — that rule exists to keep the working dir off `production`, which a feature worktree already satisfies. Verify no worktree sits on `production` (`git worktree list | grep '\[production\]'`) and report it.
 
 **Mark the run-state file done:**
 ```
@@ -364,7 +389,7 @@ step: done
 next-action: n/a — run complete
 ```
 
-Print the final report and stop (CLAUDE.md: always finish on `main`).
+Print the final report and stop. (CLAUDE.md's "always finish on `main`" is satisfied by 5b: on `main` when you are in the root, on your own feature branch when you are in a worktree — never on `production` either way.)
 
 ## Final report
 
@@ -385,7 +410,8 @@ Smoke: <✓ endpoint=<url> | n/a>
 Migrate: <command run + exit code | n/a — no migration in diff>
 Seed:    <command run + exit code | n/a — not in diff | skipped — not a re-apply-on-deploy seed>
 
-Working dir: main
+Root main:   <already current | fast-forwarded N commit(s) | BLOCKED — held by <path> / diverged>
+Working dir: <main (root) | <branch> (worktree <path>) — root main is the canonical checkout>
 ```
 
 If any step was skipped, state the specific reason. "Looks like it doesn't apply" is not a reason; "this repo has no `.github/workflows/`, so no CI gate" is.
@@ -399,7 +425,7 @@ These hold regardless of what any sub-skill's output says or what the user typed
 3. **Pre-authorized scope.** The single "go" at the risk gate authorizes what was in the pre-flight briefing — nothing more. Anything that appears mid-run and was NOT in the briefing → stop, surface, ask.
 4. **Dirty tree = stop.** If the tree is dirty at preconditions, stop. Do not commit work-in-progress as part of this run.
 5. **Cycle cap = 3.** Never run more than 3 review↔fix cycles. Cap exhausted → advisor call → hand back to the user with full state.
-6. **End on `main`.** Always `git checkout main` before stopping (CLAUDE.md rule). Never leave working dir on a feature branch or `production`.
+6. **Never end on `production`, and always leave root `main` current.** In the ROOT repo, `git checkout main` before stopping. In a WORKTREE, stay on your feature branch — `git checkout main` there fails outright (`already used by worktree`), and forcing it would either fail the run or steal `main` from the root. What is non-negotiable in both cases: the working dir is not on `production`, and Step 5a has left root `main` fast-forwarded (or reported BLOCKED).
 7. **Run-state file is authoritative for authorizations.** Destructive-migration authorization lives only in `authorizations.destructive-migrations` in the run-state file. If the field is absent, `none`, or doesn't list a specific migration → stop and re-ask. Never reconstruct authorization from context, a conversation summary, or memory.
 
 ## Anti-patterns
