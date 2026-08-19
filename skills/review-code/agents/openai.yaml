@@ -2,3 +2,5 @@ interface:
   display_name: "Review Code"
   short_description: "Code quality review with optional testing assessment."
   default_prompt: "Use the /review-code skill: Code quality review with optional testing assessment."
+policy:
+  allow_implicit_invocation: false
