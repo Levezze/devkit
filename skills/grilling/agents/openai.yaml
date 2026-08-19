@@ -1,0 +1,4 @@
+interface:
+  display_name: "Grilling"
+  short_description: "Grill the user relentlessly about a plan, decision, or idea."
+  default_prompt: "Use the /grilling skill: Grill the user relentlessly about a plan, decision, or idea."

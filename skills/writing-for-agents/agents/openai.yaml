@@ -1,0 +1,4 @@
+interface:
+  display_name: "Writing For Agents"
+  short_description: "Writing documents for agents."
+  default_prompt: "Use the /writing-for-agents skill: Writing documents for agents."
