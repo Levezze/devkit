@@ -1,3 +1,4 @@
 interface:
   display_name: "Wizard"
-  short_description: "Generate an interactive setup wizard"
+  short_description: "Generate an interactive bash wizard that walks a human through steps only they can perform."
+  default_prompt: "Use the /wizard skill: Generate an interactive bash wizard that walks a human through steps only they can perform."

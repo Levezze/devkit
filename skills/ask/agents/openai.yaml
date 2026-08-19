@@ -2,3 +2,5 @@ interface:
   display_name: "Ask"
   short_description: "Answer questions without writing code to the codebase."
   default_prompt: "Use the /ask skill: Answer questions without writing code to the codebase."
+policy:
+  allow_implicit_invocation: false

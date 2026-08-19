@@ -1,4 +1,6 @@
 interface:
   display_name: "Grill Me"
-  short_description: "Interview the user relentlessly about a plan or design until reaching shared understanding, resolving each branch of the decision tree."
-  default_prompt: "Use the /grill-me skill: Interview the user relentlessly about a plan or design until reaching shared understanding, resolving each branch of the decision tree."
+  short_description: "A relentless interview to sharpen a plan or design."
+  default_prompt: "Use the /grill-me skill: A relentless interview to sharpen a plan or design."
+policy:
+  allow_implicit_invocation: false

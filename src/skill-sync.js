@@ -135,10 +135,18 @@ function normalizeWhitespace(value) {
   return value.replace(/\s+/g, ' ').trim();
 }
 
+// A description can open with a one-word imperative ("Stop. That last message
+// did not land: re-pitch it."). Taking the first sentence there yields "Stop.",
+// which is useless as a Codex short_description, so fall back to the whole thing.
+// The threshold is one word on purpose: a genuinely short summary like
+// "Holistic documentation audit." is better than the paragraph behind it.
 function firstSentence(description) {
   const normalized = normalizeWhitespace(description);
   const match = normalized.match(/^.*?[.!?](?=\s|$)/);
-  return match ? match[0].trim() : normalized;
+  if (!match) return normalized;
+
+  const sentence = match[0].trim();
+  return sentence.split(/\s+/).length < 2 ? normalized : sentence;
 }
 
 function parseScalar(raw) {
@@ -230,6 +238,7 @@ export function readSkillMetadata(rootDir, skillName) {
     modelTier,
     model: metadata.model,
     effort: metadata.effort,
+    disableModelInvocation: metadata['disable-model-invocation'] === 'true',
   };
 }
 
@@ -240,13 +249,22 @@ export function generatedOpenAiYaml(rootDir, skillName) {
     ? ` ${MODEL_TIER_INSTRUCTIONS[metadata.modelTier]}`
     : '';
 
-  return [
+  const lines = [
     YAML_HEADER.trimEnd(),
     `  display_name: ${yamlString(displayName)}`,
     `  short_description: ${yamlString(metadata.summary)}`,
     `  default_prompt: ${yamlString(`Use the /${metadata.name} skill: ${metadata.summary}${modelTierInstruction}`)}`,
-    '',
-  ].join('\n');
+  ];
+
+  // Claude Code's `disable-model-invocation: true` means the skill is reachable
+  // only when the user types it. Codex spells the same thing as a policy block,
+  // so mirror it here or the skill stays implicitly invocable there.
+  if (metadata.disableModelInvocation) {
+    lines.push('policy:', '  allow_implicit_invocation: false');
+  }
+
+  lines.push('');
+  return lines.join('\n');
 }
 
 export function syncSkillMetadata(rootDir = ROOT_DIR, { apply = false } = {}) {
