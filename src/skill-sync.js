@@ -135,10 +135,18 @@ function normalizeWhitespace(value) {
   return value.replace(/\s+/g, ' ').trim();
 }
 
+// A description can open with a one-word imperative ("Stop. That last message
+// did not land: re-pitch it."). Taking the first sentence there yields "Stop.",
+// which is useless as a Codex short_description, so fall back to the whole thing.
+// The threshold is one word on purpose: a genuinely short summary like
+// "Holistic documentation audit." is better than the paragraph behind it.
 function firstSentence(description) {
   const normalized = normalizeWhitespace(description);
   const match = normalized.match(/^.*?[.!?](?=\s|$)/);
-  return match ? match[0].trim() : normalized;
+  if (!match) return normalized;
+
+  const sentence = match[0].trim();
+  return sentence.split(/\s+/).length < 2 ? normalized : sentence;
 }
 
 function parseScalar(raw) {
