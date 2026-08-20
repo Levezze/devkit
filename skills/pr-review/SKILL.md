@@ -88,8 +88,15 @@ Each file uses a fresh timestamp, so prior runs are preserved and can be inspect
    | check | a real run | a dead run |
    |---|---|---|
    | duration | minutes | seconds |
-   | `grep -E '"status":4[0-9][0-9]\|Specify --uncommitted' <file>` | no match | matches |
+   | the error grep below | no match | matches |
    | a verdict sentence in the file | present | absent — the transcript is just the system prompt and tool preamble, which reads as "reviewed, found nothing" |
+
+   ```bash
+   tail -50 /tmp/pr-review-<pr#>-<TS>-codex.md \
+     | grep -E -e '"status":4[0-9][0-9]' -e 'Specify --uncommitted'
+   ```
+
+   Two details there are load-bearing. **Use `-e` per alternative rather than a `|` alternation** — a `|` inside a markdown table cell has to be written `\|`, and `\|` in an ERE matches a *literal pipe*, so the escaped form silently matches nothing and reports every dead run as clean. And **scope it to the tail**: these markers appear in the body of any diff that discusses them (this skill's own file included), so an unscoped grep over the whole transcript false-positives.
 
    A `400 … requires a newer version of Codex` in the tail means the config's default model is not accepted by the installed CLI. Fix it by pinning `-m <model>` **before** `review`, choosing a model the local `~/.codex/config.toml` shows this install accepts — its `[tui.model_availability_nux]` and `[notice.model_migrations]` tables name them. Do not assert that any model name is invalid; the CLI version is the moving part, and a name that 400s at one version works at the next.
 1. Identify the PR. Read its title, body, and the issue number it closes (`Closes #N` or `gh pr view <pr> --json number,closingIssuesReferences`).
