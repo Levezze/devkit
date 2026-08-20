@@ -36,6 +36,7 @@ Compute a single timestamp at the start of the run: `TS=$(date -u +%Y%m%dT%H%M%S
 
 - `/tmp/pr-review-<pr#>-<TS>-main.md` — the parent's own audit (steps 6–8). Created and appended-to by the parent.
 - `/tmp/pr-review-<pr#>-<TS>-subagent.md` — the code-reviewer sub-agent's audit. Created and appended-to by the sub-agent via its `OUTPUT_FILE` protocol.
+- `/tmp/pr-review-<pr#>-<TS>-codex.md` — the raw `codex review` transcript, if a Codex run was launched at step 0. Written by the shell redirect, not by an agent.
 - `/tmp/pr-review-<pr#>-<TS>-final.md` — the synthesized Output block, written by the parent at step 8 *before* echoing it to chat. Include this path in the chat output so the user can recover the full review if the chat message itself truncates.
 
 Each file uses a fresh timestamp, so prior runs are preserved and can be inspected or resumed.
@@ -66,7 +67,38 @@ Each file uses a fresh timestamp, so prior runs are preserved and can be inspect
    ## Synthesis notes
    ```
 
-   **Then kick off Codex first (Claude Code only, when available).** If a `/codex:review` command/plugin is installed, launch it in the **background now** so it audits in parallel with this whole review (zero added wall-clock): `Bash(run_in_background: true)` the codex review with `--background`. **Worktree trap:** codex reviews `process.cwd()` = the ROOT repo, not the worktree you may be logically in — when the PR's checkout is a git worktree, pass `-C <absolute path to that worktree>` (alias `--cwd`) or it reviews the wrong tree. A clean worktree (all committed) makes codex auto-diff the branch vs `main` = exactly the PR; verify its log says `Reviewer started: changes against 'main'`. Record the returned output-file path for step 8. If no codex tooling is present (or this skill is itself running under Codex/Cursor), skip silently — `/pr-review` is fully self-sufficient without it. Codex output is **input** to the synthesis, never an auto-block.
+   **Then kick off Codex first (Claude Code only, when available).** Launch it in the **background now** so it audits in parallel with this whole review (zero added wall-clock). Use the raw `codex` CLI — not a `/codex:review` slash command — via `Bash(run_in_background: true)`:
+
+   ```bash
+   cd <worktree-abs-path> && codex -C <worktree-abs-path> review --base origin/main \
+     > /tmp/pr-review-<pr#>-<TS>-codex.md 2>&1
+   ```
+
+   Four things about that line, each of which has cost a review run:
+
+   - **`-C` is a *global* flag, so it goes before `review`.** `codex review -C <dir>` is not valid — the `review` subcommand's only flags are `--base`, `--commit`, `--uncommitted`, `--title`, `--enable`, `--disable`, and `-c`. Same for `-m/--model`. Belt-and-braces the `cd` as well: codex otherwise resolves `process.cwd()` = the ROOT repo, not the worktree you may be logically in, and reviews the wrong tree.
+   - **`--base` is mandatory — there is no auto-diff.** Omitting it prints `Error: Specify --uncommitted, --base, --commit, or provide custom review instructions` and **exits 0** with zero review output. Use `origin/main`, not `main`: a worktree's local `main` ref is routinely stale or absent.
+   - **`--background` is not a flag on this CLI.** Background it with `Bash(run_in_background: true)` and redirect to a file; there is no wrapper stdout to read.
+   - **Redirect stderr (`2>&1`).** The failure modes below announce themselves on stderr and are invisible otherwise.
+
+   Record the output path for step 8. If `codex` is not on PATH (or this skill is itself running under Codex/Cursor), skip silently — `/pr-review` is fully self-sufficient without it. Codex output is **input** to the synthesis, never an auto-block.
+
+   **A dead codex run is indistinguishable from a clean one unless you check. Exit code will not tell you** — exit 0 has been measured on two separate failure modes. Before counting Codex as having participated, verify all three:
+
+   | check | a real run | a dead run |
+   |---|---|---|
+   | duration | minutes | seconds |
+   | the error grep below | no match | matches |
+   | a verdict sentence in the file | present | absent — the transcript is just the system prompt and tool preamble, which reads as "reviewed, found nothing" |
+
+   ```bash
+   tail -50 /tmp/pr-review-<pr#>-<TS>-codex.md \
+     | grep -E -e '"status":4[0-9][0-9]' -e 'Specify --uncommitted'
+   ```
+
+   Two details there are load-bearing. **Use `-e` per alternative rather than a `|` alternation** — a `|` inside a markdown table cell has to be written `\|`, and `\|` in an ERE matches a *literal pipe*, so the escaped form silently matches nothing and reports every dead run as clean. And **scope it to the tail**: these markers appear in the body of any diff that discusses them (this skill's own file included), so an unscoped grep over the whole transcript false-positives.
+
+   A `400 … requires a newer version of Codex` in the tail means the config's default model is not accepted by the installed CLI. Fix it by pinning `-m <model>` **before** `review`, choosing a model the local `~/.codex/config.toml` shows this install accepts — its `[tui.model_availability_nux]` and `[notice.model_migrations]` tables name them. Do not assert that any model name is invalid; the CLI version is the moving part, and a name that 400s at one version works at the next.
 1. Identify the PR. Read its title, body, and the issue number it closes (`Closes #N` or `gh pr view <pr> --json number,closingIssuesReferences`).
 2. Read the issue body. Find the parent PRD reference (`## Parent PRD` or similar).
 3. Read the PRD body. Note the acceptance criteria, the user stories, the implementation decisions, and the out-of-scope list. The PRD is the contract; the PR is the delivery.
@@ -90,7 +122,7 @@ Each file uses a fresh timestamp, so prior runs are preserved and can be inspect
      Append the crossed/oversized files (or "none") to `## Grep gates`.
    - **Repo-specific architectural gates.** Run any gates relevant to the repo (e.g. cross-module service imports for projects with a controller/service split).
 7. Audit specifically for the smells below. Be hostile. The PR is guilty until proven innocent. As you open each touched file for review, append its path to `## Files reviewed` *before* auditing it — this is the coverage log the resume mechanism reads. **Append each finding to `## Findings` as it is discovered**, one finding per `Edit` call, in the form `- file:path:line — <category> — <severity> — <note>`. Do not hold findings in conversational memory and dump them at the end.
-8. Produce findings. Read both the main file and the sub-agent file from disk. **If a Codex review was launched at step 0, read its output file too** (wait for it to finish if still running — it ran in parallel, so it is usually done by now) and fold its findings into the synthesis, deduped against your own and the sub-agent's and labeled by source (Codex independently raising a point you also found is strong signal; a Codex-only finding still gets the same hostile scrutiny — read the file before agreeing). If Codex reviewed the wrong tree (no overlap with the PR diff — the classic worktree-cwd miss), say so and discard it rather than fold in noise. Synthesize the user-facing Output block (see "Output" below) and write it to the `-final.md` file *before* echoing it to chat — that file is the durable artifact if the chat-side message truncates. Critical or smell findings → fail. Pass only when all findings are addressed or explicitly accepted by the user.
+8. Produce findings. Read both the main file and the sub-agent file from disk. **If a Codex review was launched at step 0, run the three liveness checks from step 0 against its output file before reading it for content** (wait for it to finish if still running — it ran in parallel, so it is usually done by now). A run that fails any of them is discarded as `Codex: dead run, discarded`; do not fold its zero findings in as agreement, because an absence of findings in a dead transcript is not a clean bill of health. If it passes, fold its findings into the synthesis, deduped against your own and the sub-agent's and labeled by source (Codex independently raising a point you also found is strong signal; a Codex-only finding still gets the same hostile scrutiny — read the file before agreeing). If Codex reviewed the wrong tree (no overlap with the PR diff — the classic worktree-cwd miss), say so and discard it rather than fold in noise. Synthesize the user-facing Output block (see "Output" below) and write it to the `-final.md` file *before* echoing it to chat — that file is the durable artifact if the chat-side message truncates. Critical or smell findings → fail. Pass only when all findings are addressed or explicitly accepted by the user.
 
 ### Resuming an interrupted review
 
@@ -163,7 +195,7 @@ State the call as a real judgement, not a checkbox sum — e.g. "RECOMMENDED: 3 
 
 Write the block below to `/tmp/pr-review-<pr#>-<TS>-final.md` first, then echo it to chat. End the chat message with a line `Full review: /tmp/pr-review-<pr#>-<TS>-final.md` so the user can recover the unabridged version if the chat-side message truncates.
 
-Tag each finding that originated from (or was corroborated by) Codex with a trailing `(Codex)` / `(Codex + self)` so the reader sees independent agreement at a glance. If a Codex review ran, add a one-line `Codex: <n> findings folded / wrong-tree, discarded / not available` to the Notes section so its participation is explicit.
+Tag each finding that originated from (or was corroborated by) Codex with a trailing `(Codex)` / `(Codex + self)` so the reader sees independent agreement at a glance. If a Codex review ran, add a one-line `Codex: <n> findings folded / dead run, discarded / wrong-tree, discarded / not available` to the Notes section so its participation is explicit. Never omit this line when a run was launched — a silently-dropped Codex run is how "reviewed by two readers" gets asserted on the strength of one.
 
 ```
 PR #<n> — Review
