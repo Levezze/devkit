@@ -1,5 +1,3 @@
-Start each conversation `/caveman full`. Stop only if user asks.
-
 No yes-man. Bad idea? Say so, explain why, before implement. Mediocre design? Say so — no fake praise. Compliments only when meant. Honest > polite, no ass.
 
 Want professional partner, not sycophant. No prostrate. No "right/smart/great" unless believed — never flip stance from pushback. Challenge + still correct → hold position, explain. Mind changed by new info → say what changed it. Contradicting across turns to please = worse than disagreeing. Pre-decision: full honest assessment, collab, pushback warranted. Post-decision: absolute, execute, no re-litigate.
@@ -41,9 +39,28 @@ This is not overriding the harness. Plan mode requires user approval for changes
 
 ## Code review
 
-Order before merge (when codex installed): (a) `/codex:review --background` FIRST. (b) then `/pr-review` (own audit, runs while codex works). Reconcile both via `/fix-pr-review`. No codex → just `/pr-review`.
+Order before merge (when codex installed): (a) codex review FIRST, backgrounded. (b) then `/pr-review` (own audit, runs while codex works). Reconcile both via `/fix-pr-review`. No codex → just `/pr-review`.
 
-**Worktree trap:** codex reviews `process.cwd()` = the ROOT repo, NOT the worktree you're logically in (shell cwd snaps back to root). Working in a `/worktree`? MUST pass `-C <worktree-abs-path>` (alias `--cwd`) or codex reviews the wrong tree (e.g. unrelated changes on the root's branch). `/codex:review --background -C <worktree>`. Clean worktree (all committed) → codex auto-diffs branch vs `main` = exactly the PR. Verify: codex log says `Reviewer started: changes against 'main'`.
+Invoke the raw CLI, not a `/codex:review` slash command, via `Bash(run_in_background: true)`:
+
+```bash
+cd <worktree-abs-path> && codex -C <worktree-abs-path> review --base origin/main \
+  > /tmp/codex-review-<branch>.md 2>&1
+```
+
+- **Worktree trap:** codex resolves `process.cwd()` = the ROOT repo, NOT the worktree you're logically in (shell cwd snaps back to root), so it reviews unrelated changes on the root's branch. Both the `cd` and the `-C` guard against that.
+- **`-C/--cd` and `-m/--model` are GLOBAL flags — they go before `review`.** `codex review -C <dir>` is invalid. `review`'s own flags are only `--base`, `--commit`, `--uncommitted`, `--title`, `--enable`, `--disable`, `-c`.
+- **`--base` is mandatory; there is no auto-diff.** Use `origin/main` — a worktree's local `main` ref is routinely stale or absent.
+- **`--background` is not a flag.** Background it with `Bash(run_in_background: true)` and redirect.
+
+**A dead codex run is indistinguishable from a clean one, and the exit code will not tell you** — exit 0 is measured on two separate failure modes: omitting `--base` (prints `Error: Specify --uncommitted, --base, --commit, …`, no review) and a model the installed CLI rejects (a long plausible transcript, then a 400). Both read as "reviewed, found nothing." Before counting codex as having participated, check all three: duration (a real review takes **minutes**, a dead one returns in seconds), a present verdict sentence, and
+
+```bash
+tail -50 /tmp/codex-review-<branch>.md \
+  | grep -E -e '"status":4[0-9][0-9]' -e 'Specify --uncommitted'
+```
+
+(one `-e` per alternative on purpose — an escaped `\|` in an ERE matches a literal pipe and silently matches nothing; `tail` on purpose too, since any diff that discusses these markers contains them). A 400 means the config's default model is not accepted by the installed CLI — pin `-m <model>` **before** `review`, choosing one the local `~/.codex/config.toml` shows this install accepts (`[tui.model_availability_nux]`, `[notice.model_migrations]`). Never assert a model name is invalid; the CLI version is the moving part.
 
 ## Git workflow
 
