@@ -2,6 +2,8 @@
 
 **Programming-level planning, per module.** Which files are added, changed or moved, and what gets consolidated first. Run it for every module in the current slice. Later modules get theirs when `resume` reaches them.
 
+**Phase 2 off** (typical for S): create a single implicit `M1` in the card's repo, `modules/M1-<plan slug>/`, with its rollup row and a baseline of envelope ÷ (1 + buffer%), so baseline plus buffer fills the envelope. Its code plan then covers what the system doc would have: a line or two of current state from Orient's survey, at the top of §3.1.1.
+
 Research subagents check reuse before anything new is designed: existing utilities in the repo, and libraries or open-source options. Recommend reusing or adopting something whenever it fits.
 
 ## Topics (per module)

@@ -15,7 +15,7 @@ Two stages, kept apart:
 
 Invocations:
 
-- `/planning <idea>` — new plan. Steps 1–6.
+- `/planning <idea>` — new plan. Steps 1–6; a ❌ on any checkpoint card jumps to step 6.
 - `/planning resume <slug or path>` — continue a plan. See [Resume](#resume).
 
 ## 1. Orient (facts are your job)
@@ -48,7 +48,7 @@ If a fact arrives before the card that invalidates an answer, re-ask that single
 | L | 3–8 weeks, many modules or several repos | 1 · 2 · 3 · 4 | deep + standard | 40% | PRD + issues |
 | XL | months, architecture, built in slices | 1 · 2 whole; 3 · 4 current slice | deep + standard | 40% of slice | epic |
 
-The buffer is a percentage of the module sum. It gets a day value in phase 2 ([`rules/timeline.md`](rules/timeline.md)). If the envelope doesn't match the size's range, the card flags it.
+The buffer is a percentage of the module sum. It gets a day value once modules have estimates (phase 2, or phase 3 when phase 2 is off) ([`rules/timeline.md`](rules/timeline.md)). If the envelope doesn't match the size's range, the card flags it.
 
 ## 3. Start card
 
@@ -110,8 +110,8 @@ Only if the card picked something other than *none*. Follow [`rules/github.md`](
 
 ## 6. Close
 
-1. Update README §0.1 so a cold reader can continue with `resume`. Name the next action, say who or what it waits on (**the user** — which Q or approval — or **other work**), and list the modules still waiting for phases 3 and 4.
-2. Report planning time, taken from the times in `log.md`.
+1. Update README §0.1 so a cold reader can continue with `resume`. Name the next action (the next unwritten phase, if the user stopped early), say who or what it waits on (**the user** — which Q or approval — or **other work**), and list the modules still waiting for phases 3 and 4.
+2. Report planning time, taken from the times in `log.md`, and list the Ds made this session. Decisions made during a resume appear here, because the resume card has no Decided line.
 
 ## Resume
 
@@ -119,7 +119,7 @@ In this order:
 
 1. **Read** README §0.1–§0.5: where we are, the card, the rollup, the decisions (for the next free IDs), and open questions. Open other files only when a step needs them.
 2. **Actuals.** Record them for units finished since the last session, from merged PRs and closed issues where possible, otherwise by asking. Check a user-given figure against the record (the log's last session time, git dates) and ask again if the two can't both be true. For each unit 50% or more over its estimate, write an **overrun report** ([`rules/timeline.md`](rules/timeline.md)).
-3. **Re-run the alignment check** with the actuals. If it now shows a new or larger ⚠, that becomes an open Q.
+3. **Re-run the alignment check** with the actuals. A new ⚠ becomes an open Q. A larger one reopens or updates the existing timeline Q rather than adding a second.
 4. **Show the resume card**, preceded by any overrun reports:
 
 ```
@@ -127,14 +127,15 @@ RESUMED     <slug> · last: <§0.1 phase line>                         <date>
 ─────────────────────────────────────────────────────────────────────────────
 Actuals    <U-id est→actual (+x%); … | none new>
 Open       <all open Q-ids | none>
-Timeline   <done> + <left> + buffer <b> = <total> vs <envelope>  <✅|⚠ +<x> d>
-Next       ✅ <open Qs | phases 3–4 for M<k> | GitHub step | build U-id>
+Timeline   <done> + <left> = <proj> · buffer left <b> vs <env>  <✅|⚠ +<x>|—>
+Next       ✅ <open Qs | phase <n> | phases 3–4 M<k> | GitHub | build U-id>
            ❌ stop
 ```
 
 5. **Answer open Qs** in a round, in every case. A question never waits a session for a branch that doesn't ask it.
 6. **Continue.** Take each branch that applies, in this order:
-   - **GitHub step pending** (none chosen yet, or drafts awaiting creation) → step 5.
+   - **An approved phase has no document yet** (the user stopped at a checkpoint) → step 4 from that phase.
+   - **GitHub step pending** → step 5. Pending means: the option is *drafts* and the bodies aren't written yet, or the option is *issues*, *PRD + issues* or *epic* and a current-slice unit has no issue number. Written drafts are not pending.
    - **A module still needs phases 3–4** (epic, or the next slice) → run them, then the GitHub step for that module.
    - **Build in progress** → nothing more. §0.1 names the next unit.
 
