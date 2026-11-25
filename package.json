@@ -10,7 +10,7 @@
     "start": "node install.js",
     "test": "node scripts/test-opus-200k.mjs"
   },
-  "keywords": ["claude", "claude-code", "codex", "cursor", "settings", "installer", "devkit"],
+  "keywords": ["claude", "claude-code", "codex", "cursor", "antigravity", "t3-code", "settings", "installer", "devkit"],
   "author": "",
   "license": "MIT",
   "type": "module",

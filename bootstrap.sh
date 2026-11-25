@@ -58,6 +58,7 @@ AI_ONLY=""
 INSTALL_CLAUDE=1
 INSTALL_CODEX=1
 INSTALL_CURSOR=1
+INSTALL_ANTIGRAVITY=1
 
 # Returns 0 if should install, 1 if should skip
 prompt_existing() {
@@ -130,6 +131,7 @@ select_ai_environments() {
   INSTALL_CLAUDE=0
   INSTALL_CODEX=0
   INSTALL_CURSOR=0
+  INSTALL_ANTIGRAVITY=0
 
   local selected="${DEVKIT_AI_ENVS:-}"
   if [[ -z "$selected" ]]; then
@@ -138,9 +140,10 @@ select_ai_environments() {
     echo "    1) Claude Code"
     echo "    2) Codex"
     echo "    3) Cursor"
+    echo "    4) Antigravity"
     echo ""
-    read -p "  Choices [1,2,3]: " selected
-    selected=${selected:-1,2,3}
+    read -p "  Choices [1,2,3,4]: " selected
+    selected=${selected:-1,2,3,4}
   fi
 
   selected="${selected//,/ }"
@@ -149,19 +152,22 @@ select_ai_environments() {
       1|claude|Claude|claude-code|Claude-Code) INSTALL_CLAUDE=1 ;;
       2|codex|Codex) INSTALL_CODEX=1 ;;
       3|cursor|Cursor) INSTALL_CURSOR=1 ;;
+      4|antigravity|Antigravity|agy) INSTALL_ANTIGRAVITY=1 ;;
       all|All|ALL)
         INSTALL_CLAUDE=1
         INSTALL_CODEX=1
         INSTALL_CURSOR=1
+        INSTALL_ANTIGRAVITY=1
         ;;
     esac
   done
 
-  if [[ "$INSTALL_CLAUDE" != "1" && "$INSTALL_CODEX" != "1" && "$INSTALL_CURSOR" != "1" ]]; then
+  if [[ "$INSTALL_CLAUDE" != "1" && "$INSTALL_CODEX" != "1" && "$INSTALL_CURSOR" != "1" && "$INSTALL_ANTIGRAVITY" != "1" ]]; then
     print_warning "No AI coding environments selected; defaulting to all."
     INSTALL_CLAUDE=1
     INSTALL_CODEX=1
     INSTALL_CURSOR=1
+    INSTALL_ANTIGRAVITY=1
   fi
 }
 
@@ -170,6 +176,7 @@ selected_ai_envs_csv() {
   [[ "$INSTALL_CLAUDE" == "1" ]] && envs+=("claude")
   [[ "$INSTALL_CODEX" == "1" ]] && envs+=("codex")
   [[ "$INSTALL_CURSOR" == "1" ]] && envs+=("cursor")
+  [[ "$INSTALL_ANTIGRAVITY" == "1" ]] && envs+=("antigravity")
   local IFS=,
   echo "${envs[*]}"
 }
@@ -561,7 +568,7 @@ install_cli_tools() {
 }
 
 install_claude_code() {
-  print_step 13 16 "Checking Claude Code..."
+  print_step 13 17 "Checking Claude Code..."
 
   if [[ "$INSTALL_CLAUDE" != "1" ]]; then
     print_info "Claude Code not selected, skipping"
@@ -586,7 +593,7 @@ install_claude_code() {
 }
 
 install_codex() {
-  print_step 14 16 "Checking Codex CLI..."
+  print_step 14 17 "Checking Codex CLI..."
 
   if [[ "$INSTALL_CODEX" != "1" ]]; then
     print_info "Codex not selected, skipping"
@@ -611,7 +618,7 @@ install_codex() {
 }
 
 install_cursor() {
-  print_step 15 16 "Checking Cursor..."
+  print_step 15 17 "Checking Cursor..."
 
   if [[ "$INSTALL_CURSOR" != "1" ]]; then
     print_info "Cursor not selected, skipping"
@@ -643,8 +650,28 @@ install_cursor() {
   print_success "Cursor installed"
 }
 
+install_antigravity() {
+  print_step 16 17 "Checking Antigravity..."
+
+  if [[ "$INSTALL_ANTIGRAVITY" != "1" ]]; then
+    print_info "Antigravity not selected, skipping"
+    return 0
+  fi
+
+  if command -v agy &> /dev/null || [[ -d "/Applications/Antigravity.app" ]]; then
+    local version="installed"
+    if command -v agy &> /dev/null; then
+      version=$(agy --version 2>/dev/null | head -n1 || echo "installed")
+    fi
+    print_success "Antigravity already installed ($version)"
+    return 0
+  fi
+
+  print_warning "Antigravity not found. Install it from https://antigravity.google, then re-run node install.js."
+}
+
 install_ai_config() {
-  print_step 16 16 "Installing AI coding config..."
+  print_step 17 17 "Installing AI coding config..."
 
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -699,6 +726,7 @@ main() {
     install_claude_code
     install_codex
     install_cursor
+    install_antigravity
     install_ai_config
 
     echo ""
@@ -732,6 +760,7 @@ main() {
   install_claude_code
   install_codex
   install_cursor
+  install_antigravity
   install_ai_config
 
   # Final summary
