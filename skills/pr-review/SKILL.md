@@ -32,11 +32,12 @@ If the user's invocation message itself contains explicit fix authorization (e.g
 
 Long reviews truncate at two boundaries: the sub-agent → parent tool-result boundary, and the parent → user message boundary. To survive both, this skill streams findings into `/tmp/` files as it audits. The user-facing Output block is the *last* step, synthesized from those files.
 
-Compute a single timestamp at the start of the run: `TS=$(date -u +%Y%m%dT%H%M%SZ)`. Use it for all three paths below.
+Compute a single timestamp at the start of the run: `TS=$(date -u +%Y%m%dT%H%M%SZ)`. Use it for all paths below.
 
 - `/tmp/pr-review-<pr#>-<TS>-main.md` — the parent's own audit (steps 6–8). Created and appended-to by the parent.
 - `/tmp/pr-review-<pr#>-<TS>-subagent.md` — the code-reviewer sub-agent's audit. Created and appended-to by the sub-agent via its `OUTPUT_FILE` protocol.
 - `/tmp/pr-review-<pr#>-<TS>-codex.md` — the raw `codex review` transcript, if a Codex run was launched at step 0. Written by the shell redirect, not by an agent.
+- `/tmp/pr-review-<pr#>-<TS>-agy.md` — the raw `agy -p` review transcript, if an Antigravity (`agy`) run was launched at step 0. Written by the shell redirect, not by an agent.
 - `/tmp/pr-review-<pr#>-<TS>-final.md` — the synthesized Output block, written by the parent at step 8 *before* echoing it to chat. Include this path in the chat output so the user can recover the full review if the chat message itself truncates.
 
 Each file uses a fresh timestamp, so prior runs are preserved and can be inspected or resumed.
@@ -67,7 +68,9 @@ Each file uses a fresh timestamp, so prior runs are preserved and can be inspect
    ## Synthesis notes
    ```
 
-   **Then kick off Codex first (Claude Code only, when available).** Launch it in the **background now** so it audits in parallel with this whole review (zero added wall-clock). Use the raw `codex` CLI — not a `/codex:review` slash command — via `Bash(run_in_background: true)`:
+   **Then kick off external CLI reviewers first (in parallel, in the background).** Launch each installed external reviewer that is *not* the active harness driving this review, so they audit in parallel with this whole review (zero added wall-clock). Both outputs are **input** to the synthesis, never an auto-block.
+
+   **1) Codex** (when `codex` is on PATH and this session is not itself Codex). Use the raw `codex` CLI — not a `/codex:review` slash command — via `Bash(run_in_background: true)`:
 
    ```bash
    cd <worktree-abs-path> && codex -C <worktree-abs-path> review --base origin/main \
@@ -81,7 +84,7 @@ Each file uses a fresh timestamp, so prior runs are preserved and can be inspect
    - **`--background` is not a flag on this CLI.** Background it with `Bash(run_in_background: true)` and redirect to a file; there is no wrapper stdout to read.
    - **Redirect stderr (`2>&1`).** The failure modes below announce themselves on stderr and are invisible otherwise.
 
-   Record the output path for step 8. If `codex` is not on PATH (or this skill is itself running under Codex/Cursor), skip silently — `/pr-review` is fully self-sufficient without it. Codex output is **input** to the synthesis, never an auto-block.
+   Record the output path for step 8. If `codex` is not on PATH (or this skill is itself running under Codex), skip silently — `/pr-review` is fully self-sufficient without it.
 
    **A dead codex run is indistinguishable from a clean one unless you check. Exit code will not tell you** — exit 0 has been measured on two separate failure modes. Before counting Codex as having participated, verify all three:
 
@@ -99,6 +102,37 @@ Each file uses a fresh timestamp, so prior runs are preserved and can be inspect
    Two details there are load-bearing. **Use `-e` per alternative rather than a `|` alternation** — a `|` inside a markdown table cell has to be written `\|`, and `\|` in an ERE matches a *literal pipe*, so the escaped form silently matches nothing and reports every dead run as clean. And **scope it to the tail**: these markers appear in the body of any diff that discusses them (this skill's own file included), so an unscoped grep over the whole transcript false-positives.
 
    A `400 … requires a newer version of Codex` in the tail means the config's default model is not accepted by the installed CLI. Fix it by pinning `-m <model>` **before** `review`, choosing a model the local `~/.codex/config.toml` shows this install accepts — its `[tui.model_availability_nux]` and `[notice.model_migrations]` tables name them. Do not assert that any model name is invalid; the CLI version is the moving part, and a name that 400s at one version works at the next.
+
+   **2) Antigravity (`agy`)** (when `agy` is on PATH and this session is not itself Antigravity). Launch it in headless print mode (`-p`) on **Gemini 4 Neon (`high`)** in the **background** via `Bash(run_in_background: true)`:
+
+   ```bash
+   cd <worktree-abs-path> && agy -p "Perform a read-only PR review of this branch against origin/main (run git diff origin/main...HEAD and read touched files in full). Do NOT edit any files or run mutating commands. Flag bugs, regressions, edge cases, architectural/test smells, and missing coverage with file:line references and severity (Critical / Smell / Architecture / Coverage / Note), and end with an explicit Verdict: PASS or FAIL." \
+     --model gemini-4-neon-high --effort high --mode plan --sandbox --dangerously-skip-permissions \
+     > /tmp/pr-review-<pr#>-<TS>-agy.md 2>&1
+   ```
+
+   Five things about that invocation:
+
+   - **The CLI model slug is `gemini-4-neon-high` (paired with `--effort high`).** Run `agy models` if an install changes slug names (`invalid model selection`). Never assert a model name is invalid; the CLI catalog is the moving part.
+   - **`--dangerously-skip-permissions` is required in headless `-p` mode** even alongside `--mode plan --sandbox`. Without it, `agy` soft-denies shell commands (`git diff`), prints `jetski: no output produced — a tool required the "command" permission…` to stderr, and **exits 0** with zero review output. `--mode plan --sandbox` plus the read-only prompt keeps the run read-only and OS-sandboxed.
+   - **Do NOT add `--disable-slash-commands` with `--mode plan`.** `agy` prints `warning: --mode plan has no effect while slash command expansion is disabled` and drops plan mode.
+   - **Belt-and-braces `cd <worktree-abs-path>`** so `agy` reviews the worktree rather than the root checkout.
+   - **Redirect stderr (`2>&1`).** Permission soft-denials, auth errors, and invalid-model diagnostics go to stderr.
+
+   Record the output path for step 8. If `agy` is not on PATH (or this skill is itself running under Antigravity), skip silently.
+
+   **Verify `agy` liveness before counting it as having participated** — like Codex, a soft-denied headless run exits 0:
+
+   | check | a real run | a dead run |
+   |---|---|---|
+   | duration / non-empty output | tens of seconds to minutes, non-empty review | immediate exit or empty/error-only output |
+   | the error grep below | no match | matches |
+   | verdict + PR-diff overlap | explicit `Verdict:` and references files in this PR | absent or references unrelated files (wrong tree) |
+
+   ```bash
+   tail -50 /tmp/pr-review-<pr#>-<TS>-agy.md \
+     | grep -E -e 'jetski: no output produced' -e 'invalid model selection' -e 'authentication required' -e 'Failed to start:'
+   ```
 1. Identify the PR. Read its title, body, and the issue number it closes (`Closes #N` or `gh pr view <pr> --json number,closingIssuesReferences`).
 2. Read the issue body. Find the parent PRD reference (`## Parent PRD` or similar).
 3. Read the PRD body. Note the acceptance criteria, the user stories, the implementation decisions, and the out-of-scope list. The PRD is the contract; the PR is the delivery.
@@ -122,7 +156,7 @@ Each file uses a fresh timestamp, so prior runs are preserved and can be inspect
      Append the crossed/oversized files (or "none") to `## Grep gates`.
    - **Repo-specific architectural gates.** Run any gates relevant to the repo (e.g. cross-module service imports for projects with a controller/service split).
 7. Audit specifically for the smells below. Be hostile. The PR is guilty until proven innocent. As you open each touched file for review, append its path to `## Files reviewed` *before* auditing it — this is the coverage log the resume mechanism reads. **Append each finding to `## Findings` as it is discovered**, one finding per `Edit` call, in the form `- file:path:line — <category> — <severity> — <note>`. Do not hold findings in conversational memory and dump them at the end.
-8. Produce findings. Read both the main file and the sub-agent file from disk. **If a Codex review was launched at step 0, run the three liveness checks from step 0 against its output file before reading it for content** (wait for it to finish if still running — it ran in parallel, so it is usually done by now). A run that fails any of them is discarded as `Codex: dead run, discarded`; do not fold its zero findings in as agreement, because an absence of findings in a dead transcript is not a clean bill of health. If it passes, fold its findings into the synthesis, deduped against your own and the sub-agent's and labeled by source (Codex independently raising a point you also found is strong signal; a Codex-only finding still gets the same hostile scrutiny — read the file before agreeing). If Codex reviewed the wrong tree (no overlap with the PR diff — the classic worktree-cwd miss), say so and discard it rather than fold in noise. Synthesize the user-facing Output block (see "Output" below) and write it to the `-final.md` file *before* echoing it to chat — that file is the durable artifact if the chat-side message truncates. Critical or smell findings → fail. Pass only when all findings are addressed or explicitly accepted by the user.
+8. Produce findings. Read both the main file and the sub-agent file from disk. **For each external reviewer launched at step 0 (Codex and/or Antigravity), run its three liveness checks from step 0 against its output file before reading it for content** (wait for it to finish if still running — both ran in parallel, so they are usually done by now). A run that fails any check is discarded as `Codex: dead run, discarded` / `Antigravity: dead run, discarded`; do not fold its zero findings in as agreement, because an absence of findings in a dead transcript is not a clean bill of health. For each run that passes, fold its findings into the synthesis, deduped against your own, the sub-agent's, and any other external reviewer, and labeled by source (multiple reviewers independently raising a point is strong signal; a single-reviewer finding still gets the same hostile scrutiny — read the file before agreeing). If a reviewer inspected the wrong tree (no overlap with the PR diff — the classic worktree-cwd miss), say so and discard it rather than fold in noise. Synthesize the user-facing Output block (see "Output" below) and write it to the `-final.md` file *before* echoing it to chat — that file is the durable artifact if the chat-side message truncates. Critical or smell findings → fail. Pass only when all findings are addressed or explicitly accepted by the user.
 
 ### Resuming an interrupted review
 
@@ -170,9 +204,9 @@ A `// TODO(#NN)` is sometimes legitimate. Verify the linked issue exists, has a 
 
 ## Empirical verification gate — claims of non-existence/invalidity
 
-You have a training cutoff; current reality is past it. Any finding — yours, the sub-agent's, or Codex's — that claims **syntax error**, **doesn't exist / nonexistent**, **invalid API/model/version**, or **can't import / can't work** MUST be proven by tool execution before it appears in the output. Run it: `py_compile` (or the language's compiler), execute the snippet, run the cited test. No execution → the finding does not ship.
+You have a training cutoff; current reality is past it. Any finding — yours, the sub-agent's, Codex's, or Antigravity's — that claims **syntax error**, **doesn't exist / nonexistent**, **invalid API/model/version**, or **can't import / can't work** MUST be proven by tool execution before it appears in the output. Run it: `py_compile` (or the language's compiler), execute the snippet, run the cited test. No execution → the finding does not ship.
 
-Hard cross-check: **if the PR's test suite is green, an import-breaking or syntax-error claim is false on its face** — the module already imported to run those tests. Flag the contradiction ("Codex says SyntaxError, but the suite is green — discarded after `py_compile` confirmed valid") instead of folding the finding in. This applies with full force to Codex/sub-agent findings during synthesis: independent corroboration of an *unverified* non-existence claim is two models sharing the same stale cutoff, not signal. A model name the author wrote or that lives in the codebase is assumed real — never flag it as nonexistent.
+Hard cross-check: **if the PR's test suite is green, an import-breaking or syntax-error claim is false on its face** — the module already imported to run those tests. Flag the contradiction ("Codex says SyntaxError, but the suite is green — discarded after `py_compile` confirmed valid") instead of folding the finding in. This applies with full force to Codex/Antigravity/sub-agent findings during synthesis: independent corroboration of an *unverified* non-existence claim is two models sharing the same stale cutoff, not signal. A model name the author wrote or that lives in the codebase is assumed real — never flag it as nonexistent.
 
 ## Re-review recommendation
 
@@ -195,7 +229,7 @@ State the call as a real judgement, not a checkbox sum — e.g. "RECOMMENDED: 3 
 
 Write the block below to `/tmp/pr-review-<pr#>-<TS>-final.md` first, then echo it to chat. End the chat message with a line `Full review: /tmp/pr-review-<pr#>-<TS>-final.md` so the user can recover the unabridged version if the chat-side message truncates.
 
-Tag each finding that originated from (or was corroborated by) Codex with a trailing `(Codex)` / `(Codex + self)` so the reader sees independent agreement at a glance. If a Codex review ran, add a one-line `Codex: <n> findings folded / dead run, discarded / wrong-tree, discarded / not available` to the Notes section so its participation is explicit. Never omit this line when a run was launched — a silently-dropped Codex run is how "reviewed by two readers" gets asserted on the strength of one.
+Tag each finding that originated from (or was corroborated by) an external reviewer with a trailing source tag — e.g. `(Codex)`, `(Antigravity)`, `(Codex + Antigravity)`, `(Codex + self)`, `(Antigravity + self)`, or `(Codex + Antigravity + self)` — so the reader sees independent agreement at a glance. For each external reviewer that ran, add a one-line status to the Notes section (`Codex: <n> findings folded / dead run, discarded / wrong-tree, discarded / not available` and `Antigravity: <n> findings folded / dead run, discarded / wrong-tree, discarded / not available`) so its participation is explicit. Never omit a line when a run was launched — a silently-dropped external run is how "reviewed by multiple readers" gets asserted on the strength of one.
 
 ```
 PR #<n> — Review
