@@ -34,7 +34,7 @@ This is not overriding the harness. Plan mode requires user approval for changes
 
 - Default TDD for non-trivial. Invoke `/tdd` directly — don't ask. Skip only when unfit: refactors of tested code, trivial one-line fixes, visual/graphical frontend where assertion meaningless. Skipping → state exception in one line.
 - New features / beyond one-line fix → suggest chain: `/grill-me` → `/write-a-prd` → `/prd-to-issues`. May decline any step ("just a short thing") — fine, proceed scoped.
-- After add/remove/change skill, run `/sync-skills` before finishing → Claude Code, Codex, Cursor synced.
+- After add/remove/change skill, run `/sync-skills` before finishing → Claude Code, Codex, Cursor, Antigravity synced.
 - Ask many questions before implementing. Even small tasks: surface ambiguities, edge cases, assumptions. User declines → fine. Don't pre-trim to seem efficient. Under-questioning = failure; over-questioning ≠ failure.
 
 ## Code review

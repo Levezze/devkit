@@ -14,6 +14,10 @@ export const aiEnvironments = {
   cursor: {
     name: 'Cursor',
     description: 'Cursor global instructions, agents, and skills'
+  },
+  antigravity: {
+    name: 'Antigravity',
+    description: 'Antigravity (and T3 Code) global instructions and skills'
   }
 };
 
@@ -43,6 +47,7 @@ export const packages = {
       { src: 'claude/CLAUDE.md', dest: '~/.codex/AGENTS.md', name: 'Codex AGENTS.md', mode: 'link', environments: ['codex'] },
       { src: 'claude/CLAUDE.md', dest: '~/.cursor/AGENTS.md', name: 'Cursor AGENTS.md', mode: 'link', environments: ['cursor'] },
       { src: 'claude/CLAUDE.md', dest: '~/.cursor/CLAUDE.md', name: 'Cursor CLAUDE.md', mode: 'link', environments: ['cursor'] },
+      { src: 'claude/CLAUDE.md', dest: '~/.gemini/AGENTS.md', name: 'Antigravity AGENTS.md', mode: 'link', environments: ['antigravity'] },
     ]
   },
   agents: {
@@ -67,13 +72,14 @@ export const packages = {
   },
   skills: {
     name: 'Skills',
-    description: 'Custom slash command skills shared across Claude Code, Codex, and Cursor. Each entry symlinks the whole skill directory so files added later appear automatically.',
+    description: 'Custom slash command skills shared across Claude Code, Codex, Cursor, and Antigravity (including T3 Code). Each entry symlinks the whole skill directory so files added later appear automatically.',
     category: 'skills',
     defaultMode: 'link',
     files: [
       ...skillFilesForEnvironment('claude', '~/.claude/skills'),
       ...skillFilesForEnvironment('codex', '~/.codex/skills'),
       ...skillFilesForEnvironment('cursor', '~/.cursor/skills'),
+      ...skillFilesForEnvironment('antigravity', '~/.gemini/config/skills'),
     ]
   },
   plugins: {

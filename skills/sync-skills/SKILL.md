@@ -1,12 +1,12 @@
 ---
 name: sync-skills
-description: Synchronize devkit skills across Claude Code, Codex, and Cursor, repairing small symlink or Codex metadata drift and reporting larger gaps for user decisions.
+description: Synchronize devkit skills across Claude Code, Codex, Cursor, and Antigravity (including T3 Code), repairing small symlink or Codex metadata drift and reporting larger gaps for user decisions.
 disable-model-invocation: false
 ---
 
 # Sync Skills
 
-Run this when the user wants to check or repair skill synchronization across Claude Code, Codex, and Cursor.
+Run this when the user wants to check or repair skill synchronization across Claude Code, Codex, Cursor, and Antigravity (including T3 Code).
 
 ## Model-tier freshness
 
@@ -23,9 +23,9 @@ If browsing is unavailable, stop and tell the user that model-tier sync is block
 ## Workflow
 
 1. Perform the model-tier freshness check above if any skill has `x-devkit-model-tier` or if the requested sync touches model policy.
-2. From the devkit repo root, run `node scripts/sync-skills.js --apply`. To limit link repair to selected environments, pass `--envs=claude,codex,cursor` with the desired subset or set `DEVKIT_AI_ENVS`.
+2. From the devkit repo root, run `node scripts/sync-skills.js --apply`. To limit link repair to selected environments, pass `--envs=claude,codex,cursor,antigravity` with the desired subset or set `DEVKIT_AI_ENVS`.
    - To intentionally import an external installed skill into devkit, pass `--force-import=<skill>`, for example `--force-import=notebooklm`.
-   - If the same external skill exists in multiple selected sources, qualify it as `--force-import=claude/notebooklm`, `--force-import=codex/notebooklm`, or `--force-import=cursor/notebooklm`.
+   - If the same external skill exists in multiple selected sources, qualify it as `--force-import=claude/notebooklm`, `--force-import=codex/notebooklm`, `--force-import=cursor/notebooklm`, or `--force-import=antigravity/notebooklm`.
 3. If the script only reports fixed metadata or symlink drift, summarize what changed.
 4. If the script reports "Needs user decision", stop and show those gaps to the user. Do not overwrite non-symlink user skill directories or delete skills from any environment without explicit approval.
    - If a gap is a skill the user installed separately and does not want devkit to manage (so it gets flagged on every run), add it to the ignore list rather than re-flagging it. See "Ignore list" below.
@@ -36,7 +36,7 @@ If browsing is unavailable, stop and tell the user that model-tier sync is block
 `sync-skills.ignore` at the repo root suppresses the "installed skill is not present in devkit/skills" gap for named skills — for skills installed separately that devkit should not manage and should stop nagging about.
 
 - The file is **gitignored**; entries are per-user and never reach this public repo. Only `sync-skills.ignore.example` is committed (copy it to start).
-- Format: one entry per line; blank lines and `#` comments (whole-line or trailing) skipped. A bare `<name>` ignores in every environment; `<env>/<name>` (env = `claude`/`codex`/`cursor`) ignores only there. Entries are matched as exact strings, not validated — a typo is inert, never fatal.
+- Format: one entry per line; blank lines and `#` comments (whole-line or trailing) skipped. A bare `<name>` ignores in every environment; `<env>/<name>` (env = `claude`/`codex`/`cursor`/`antigravity`) ignores only there. Entries are matched as exact strings, not validated — a typo is inert, never fatal.
 - The list only suppresses gap *reporting*. It never deletes anything and does not affect linking devkit-managed skills into the environments.
 
 ## Policy

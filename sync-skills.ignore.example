@@ -11,7 +11,7 @@
 # Format: one entry per line. Blank lines and `#` comments are ignored; a `#` after an
 # entry starts a trailing comment (stripped).
 #   <name>        ignore a skill by name in every environment
-#   <env>/<name>  ignore only in that environment (env = claude | codex | cursor)
+#   <env>/<name>  ignore only in that environment (env = claude | codex | cursor | antigravity)
 #
 # Examples:
 # notebooklm

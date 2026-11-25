@@ -10,6 +10,7 @@ const ENVIRONMENTS = {
   claude: ['.claude', 'skills'],
   codex: ['.codex', 'skills'],
   cursor: ['.cursor', 'skills'],
+  antigravity: ['.gemini', 'config', 'skills'],
 };
 
 const YAML_HEADER = 'interface:\n';

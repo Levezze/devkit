@@ -1,10 +1,10 @@
 # Devkit
 
 [![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](#license)
-[![AI tools](https://img.shields.io/badge/AI-Claude%20Code%20%7C%20Codex%20%7C%20Cursor-blue)](#ai-coding-config)
+[![AI tools](https://img.shields.io/badge/AI-Claude%20Code%20%7C%20Codex%20%7C%20Cursor%20%7C%20Antigravity-blue)](#ai-coding-config)
 [![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20WSL2-lightgrey)](#platform-support)
 
-Devkit is a portable setup kit for a modern development machine and a shared AI coding workflow. It bootstraps common CLI tooling, then installs the same reusable instructions, skills, and subagents across Claude Code, Codex, and Cursor.
+Devkit is a portable setup kit for a modern development machine and a shared AI coding workflow. It bootstraps common CLI tooling, then installs the same reusable instructions, skills, and subagents across Claude Code, Codex, Cursor, and Antigravity (which T3 Code also reads per provider).
 
 It is designed around one simple idea: keep your AI coding habits in source control, then symlink them into each tool instead of copying slightly different versions around your machine.
 
@@ -22,6 +22,7 @@ flowchart LR
   skills --> claudeSkills["~/.claude/skills"]
   skills --> codexSkills["~/.codex/skills"]
   skills --> cursorSkills["~/.cursor/skills"]
+  skills --> agySkills["~/.gemini/config/skills"]
 
   agents --> claudeAgents["~/.claude/agents"]
   agents --> cursorAgents["~/.cursor/agents"]
@@ -29,9 +30,10 @@ flowchart LR
   instructions --> claudeMd["~/CLAUDE.md"]
   instructions --> codexMd["~/.codex/AGENTS.md"]
   instructions --> cursorMd["~/.cursor/AGENTS.md"]
+  instructions --> agyMd["~/.gemini/AGENTS.md"]
 ```
 
-This repository is not affiliated with Anthropic, OpenAI, Cursor, or Anysphere. It is a personal toolkit that may be useful as a starting point for your own setup.
+This repository is not affiliated with Anthropic, OpenAI, Cursor, Anysphere, or Google. It is a personal toolkit that may be useful as a starting point for your own setup.
 
 ## What It Does
 
@@ -40,12 +42,12 @@ Devkit has two layers:
 | Layer | Script | Purpose |
 |-------|--------|---------|
 | Machine bootstrap | `./bootstrap.sh` or `./setup.sh` | Installs Homebrew, shell tooling, Git, Node, Python, Docker, CLI utilities, and selected AI coding tools |
-| AI coding config | `node install.js` | Symlinks shared instructions, skills, and subagents into Claude Code, Codex, and/or Cursor |
+| AI coding config | `node install.js` | Symlinks shared instructions, skills, and subagents into Claude Code, Codex, Cursor, and/or Antigravity |
 
 During setup, Devkit asks:
 
 - Whether you only want AI coding related tools and config
-- Which AI coding environments to install or configure: Claude Code, Codex, Cursor
+- Which AI coding environments to install or configure: Claude Code, Codex, Cursor, Antigravity
 - Which config package mode to use: minimal, full, categories, or manual
 
 Model selection is intentionally excluded. Choose models inside each tool on each machine.
@@ -72,7 +74,7 @@ Use this when you want machine tooling plus the option to install AI coding conf
 
 ### AI Coding Config Only
 
-Use this when Node is already installed and you only want the Claude Code, Codex, and/or Cursor configuration.
+Use this when Node is already installed and you only want the Claude Code, Codex, Cursor, and/or Antigravity configuration.
 
 ```bash
 npm install
@@ -92,7 +94,7 @@ node install.js
 | Python | Python 3 |
 | Containers | Docker |
 | CLI utilities | curl, wget, jq, tree, htop, ripgrep, fd, bat, eza, carapace, atuin |
-| AI coding | Claude Code, Codex CLI, Cursor |
+| AI coding | Claude Code, Codex CLI, Cursor, Antigravity |
 
 Each component checks whether it is already installed and prompts before reinstalling.
 
@@ -100,13 +102,13 @@ Each component checks whether it is already installed and prompts before reinsta
 
 | Type | Installed to |
 |------|--------------|
-| Global instructions | `~/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.cursor/AGENTS.md`, `~/.cursor/CLAUDE.md` |
+| Global instructions | `~/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.cursor/AGENTS.md`, `~/.cursor/CLAUDE.md`, `~/.gemini/AGENTS.md` |
 | Claude settings | `~/.claude/settings.json`, `~/.claude/settings.local.json`, `~/.mcp.json` |
-| Skills | `~/.claude/skills/<name>`, `~/.codex/skills/<name>`, `~/.cursor/skills/<name>` |
+| Skills | `~/.claude/skills/<name>`, `~/.codex/skills/<name>`, `~/.cursor/skills/<name>`, `~/.gemini/config/skills/<name>` |
 | Subagents | `~/.claude/agents/<name>.md`, `~/.cursor/agents/<name>.md` |
 | Optional shell config | `~/.zshrc` |
 
-Settings files that need placeholder substitution are copied. Instructions, skills, and subagents are symlinked back to this repo.
+Settings files that need placeholder substitution are copied. Instructions, skills, and subagents are symlinked back to this repo. T3 Code discovers skills per provider from these same directories (`~/.claude/skills`, `~/.codex/skills`, and `~/.gemini/config/skills`) and automatically links `~/.gemini/config/skills` and `~/.gemini/AGENTS.md` into its isolated Antigravity profile.
 
 Skills can opt into a Devkit model-tier hint:
 
@@ -230,7 +232,7 @@ If you move the checkout, rerun `node install.js` so the symlinks point at the n
 | `/pr-review` | Run a diligent end-of-cycle PR review |
 | `/prd-to-issues` | Break a PRD into vertical-slice GitHub issues |
 | `/review-code` | Review code quality and testing risk |
-| `/sync-skills` | Audit and repair Claude Code, Codex, and Cursor skill synchronization |
+| `/sync-skills` | Audit and repair Claude Code, Codex, Cursor, and Antigravity skill synchronization |
 | `/tdd` | Build with a red-green-refactor loop |
 | `/ubiquitous-language` | Extract a DDD-style domain glossary |
 | `/write-a-prd` | Interview, explore, and write a product requirements document |
@@ -267,9 +269,9 @@ The smoke test runs the installer against a temporary `HOME` and verifies the fi
 
 `node install.js` discovers `skills/*/SKILL.md` automatically and regenerates `agents/openai.yaml` from the frontmatter description when needed.
 
-`node scripts/sync-skills.js` without `--apply` is a dry run. Use `--envs=claude,codex,cursor` or `DEVKIT_AI_ENVS` to limit link repair to a selected environment subset.
+`node scripts/sync-skills.js` without `--apply` is a dry run. Use `--envs=claude,codex,cursor,antigravity` or `DEVKIT_AI_ENVS` to limit link repair to a selected environment subset.
 
-If a tool installer puts a new skill directly into Claude, Codex, or Cursor, import it intentionally:
+If a tool installer puts a new skill directly into Claude, Codex, Cursor, or Antigravity, import it intentionally:
 
 ```bash
 node scripts/sync-skills.js --apply --force-import=notebooklm

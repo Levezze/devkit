@@ -3,7 +3,7 @@
 #
 # Verifies the filesystem contract documented in README.md:
 # - Skill DIRECTORIES (not files) are symlinked into ~/.claude/skills/<name>
-# - Skill DIRECTORIES are symlinked into ~/.codex/skills/<name> and ~/.cursor/skills/<name>
+# - Skill DIRECTORIES are symlinked into ~/.codex/skills/<name>, ~/.cursor/skills/<name>, and ~/.gemini/config/skills/<name>
 # - Cursor subagents are symlinked into ~/.cursor/agents/<name>.md
 # - CLAUDE.md and AGENTS.md instruction files are symlinked
 # - Files added to a skill directory in devkit appear in ~/.claude (no re-register)
@@ -139,11 +139,23 @@ import('$REPO_ROOT/src/skill-sync.js').then(m => {
   if (!fs.lstatSync('$SYNC_HOME/.codex/skills/smoke-auto-skill').isSymbolicLink()) {
     throw new Error('codex skill symlink missing');
   }
-  if (fs.existsSync('$SYNC_HOME/.claude') || fs.existsSync('$SYNC_HOME/.cursor')) {
+  if (fs.existsSync('$SYNC_HOME/.claude') || fs.existsSync('$SYNC_HOME/.cursor') || fs.existsSync('$SYNC_HOME/.gemini')) {
     throw new Error('sync created unselected environment directories');
   }
   if (!result.fixed.some(item => item.environment === 'codex')) {
     throw new Error('sync did not report codex fix');
+  }
+  const agyResult = m.syncInstalledSkillLinks({
+    rootDir: '$AUTO_ROOT',
+    homeDir: '$SYNC_HOME',
+    apply: true,
+    environments: ['antigravity'],
+  });
+  if (!fs.lstatSync('$SYNC_HOME/.gemini/config/skills/smoke-auto-skill').isSymbolicLink()) {
+    throw new Error('antigravity skill symlink missing');
+  }
+  if (!agyResult.fixed.some(item => item.environment === 'antigravity')) {
+    throw new Error('sync did not report antigravity fix');
   }
 });
 " || fail "selected-environment sync failed"
@@ -217,7 +229,7 @@ echo "[3/8] Run installer against sandbox HOME"
 HOME="$SANDBOX" node -e "
 import('$REPO_ROOT/src/packages.js').then(async m => {
   const { installFiles } = await import('$REPO_ROOT/src/installer.js');
-  const files = m.getFilesForPackages(['settings','agents','skills','plugins','shell'], ['claude','codex','cursor']);
+  const files = m.getFilesForPackages(['settings','agents','skills','plugins','shell'], ['claude','codex','cursor','antigravity']);
   await installFiles(files);
 });
 " > /dev/null
@@ -235,7 +247,7 @@ done
 pass "skill directories symlinked correctly"
 
 echo
-echo "[5/8] Verify Codex and Cursor symlinks"
+echo "[5/8] Verify Codex, Cursor, and Antigravity symlinks"
 for skill in tdd ddd handoff fix-pr-review sync-skills; do
   link="$SANDBOX/.codex/skills/$skill"
   [ -L "$link" ] || fail "$link is not a symlink"
@@ -247,6 +259,11 @@ for skill in tdd ddd handoff fix-pr-review sync-skills; do
   [ -L "$link" ] || fail "$link is not a symlink"
   target="$(readlink "$link")"
   [ "$target" = "$expected" ] || fail "Cursor $link → $target (expected $expected)"
+
+  link="$SANDBOX/.gemini/config/skills/$skill"
+  [ -L "$link" ] || fail "$link is not a symlink"
+  target="$(readlink "$link")"
+  [ "$target" = "$expected" ] || fail "Antigravity $link → $target (expected $expected)"
 done
 
 for agent in git-master code-reviewer testing-wizard; do
@@ -257,13 +274,13 @@ for agent in git-master code-reviewer testing-wizard; do
   [ "$target" = "$expected" ] || fail "Cursor $link → $target (expected $expected)"
 done
 
-for instructions in "$SANDBOX/CLAUDE.md" "$SANDBOX/.codex/AGENTS.md" "$SANDBOX/.cursor/AGENTS.md" "$SANDBOX/.cursor/CLAUDE.md"; do
+for instructions in "$SANDBOX/CLAUDE.md" "$SANDBOX/.codex/AGENTS.md" "$SANDBOX/.cursor/AGENTS.md" "$SANDBOX/.cursor/CLAUDE.md" "$SANDBOX/.gemini/AGENTS.md"; do
   [ -L "$instructions" ] || fail "$instructions is not a symlink"
   target="$(readlink "$instructions")"
   expected="$REPO_ROOT/claude/CLAUDE.md"
   [ "$target" = "$expected" ] || fail "$instructions → $target (expected $expected)"
 done
-pass "Codex and Cursor symlinks created"
+pass "Codex, Cursor, and Antigravity symlinks created"
 
 echo
 echo "[6/8] Verify copy-mode files are real (mcp.json, settings.json)"
@@ -276,7 +293,7 @@ echo "[7/8] Idempotent re-run"
 HOME="$SANDBOX" node -e "
 import('$REPO_ROOT/src/packages.js').then(async m => {
   const { installFiles } = await import('$REPO_ROOT/src/installer.js');
-  const files = m.getFilesForPackages(['skills','agents'], ['claude','codex','cursor']);
+  const files = m.getFilesForPackages(['skills','agents'], ['claude','codex','cursor','antigravity']);
   await installFiles(files);
 });
 " > "$SANDBOX/idempotent.log" 2>&1
