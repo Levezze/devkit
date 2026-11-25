@@ -39,28 +39,36 @@ This is not overriding the harness. Plan mode requires user approval for changes
 
 ## Code review
 
-Order before merge (when codex installed): (a) codex review FIRST, backgrounded. (b) then `/pr-review` (own audit, runs while codex works). Reconcile both via `/fix-pr-review`. No codex → just `/pr-review`.
+Order before merge: (a) launch installed external CLI reviewers FIRST, backgrounded (`codex` when not running in Codex; `agy` on `gemini-4-neon-high` / `--effort high` when not running in Antigravity). (b) then `/pr-review` (own audit, runs while external reviewers work). Reconcile all via `/fix-pr-review`. Neither installed → just `/pr-review`.
 
-Invoke the raw CLI, not a `/codex:review` slash command, via `Bash(run_in_background: true)`:
+Invoke the raw CLIs (not slash commands) via `Bash(run_in_background: true)`:
 
 ```bash
 cd <worktree-abs-path> && codex -C <worktree-abs-path> review --base origin/main \
   > /tmp/codex-review-<branch>.md 2>&1
+
+cd <worktree-abs-path> && agy -p "Perform a read-only PR review of this branch against origin/main (run git diff origin/main...HEAD and read touched files in full). Do NOT edit any files or run mutating commands. Flag bugs, regressions, edge cases, architectural/test smells, and missing coverage with file:line references and severity, and end with Verdict: PASS or FAIL." \
+  --model gemini-4-neon-high --effort high --mode plan --sandbox --dangerously-skip-permissions \
+  > /tmp/agy-review-<branch>.md 2>&1
 ```
 
-- **Worktree trap:** codex resolves `process.cwd()` = the ROOT repo, NOT the worktree you're logically in (shell cwd snaps back to root), so it reviews unrelated changes on the root's branch. Both the `cd` and the `-C` guard against that.
+- **Worktree trap:** codex resolves `process.cwd()` = the ROOT repo, NOT the worktree you're logically in (shell cwd snaps back to root), so it reviews unrelated changes on the root's branch. Both the `cd` and the `-C` guard against that (and `cd` guards `agy` too).
 - **`-C/--cd` and `-m/--model` are GLOBAL flags — they go before `review`.** `codex review -C <dir>` is invalid. `review`'s own flags are only `--base`, `--commit`, `--uncommitted`, `--title`, `--enable`, `--disable`, `-c`.
 - **`--base` is mandatory; there is no auto-diff.** Use `origin/main` — a worktree's local `main` ref is routinely stale or absent.
 - **`--background` is not a flag.** Background it with `Bash(run_in_background: true)` and redirect.
+- **`agy` headless traps:** the CLI model slug is `gemini-4-neon-high` (check `agy models` if changed); `--dangerously-skip-permissions` is required in `-p` mode or `agy` soft-denies shell commands (`jetski: no output produced`) and **exits 0**; do not combine `--disable-slash-commands` with `--mode plan`.
 
-**A dead codex run is indistinguishable from a clean one, and the exit code will not tell you** — exit 0 is measured on two separate failure modes: omitting `--base` (prints `Error: Specify --uncommitted, --base, --commit, …`, no review) and a model the installed CLI rejects (a long plausible transcript, then a 400). Both read as "reviewed, found nothing." Before counting codex as having participated, check all three: duration (a real review takes **minutes**, a dead one returns in seconds), a present verdict sentence, and
+**A dead reviewer run is indistinguishable from a clean one, and exit code 0 will not tell you** — exit 0 is measured on `codex` (omitting `--base`, or 400 on rejected model) and `agy` (headless permission soft-deny printing `jetski: no output produced`). Before counting a reviewer as having participated, check duration, a present verdict sentence, and:
 
 ```bash
 tail -50 /tmp/codex-review-<branch>.md \
   | grep -E -e '"status":4[0-9][0-9]' -e 'Specify --uncommitted'
+
+tail -50 /tmp/agy-review-<branch>.md \
+  | grep -E -e 'jetski: no output produced' -e 'invalid model selection' -e 'authentication required' -e 'Failed to start:'
 ```
 
-(one `-e` per alternative on purpose — an escaped `\|` in an ERE matches a literal pipe and silently matches nothing; `tail` on purpose too, since any diff that discusses these markers contains them). A 400 means the config's default model is not accepted by the installed CLI — pin `-m <model>` **before** `review`, choosing one the local `~/.codex/config.toml` shows this install accepts (`[tui.model_availability_nux]`, `[notice.model_migrations]`). Never assert a model name is invalid; the CLI version is the moving part.
+(one `-e` per alternative on purpose — an escaped `\|` in an ERE matches a literal pipe and silently matches nothing; `tail` on purpose too, since any diff that discusses these markers contains them). A Codex 400 means the config's default model is not accepted by the installed CLI — pin `-m <model>` **before** `review`, choosing one `~/.codex/config.toml` shows this install accepts (`[tui.model_availability_nux]`, `[notice.model_migrations]`). An `agy` `invalid model selection` means check `agy models`. Never assert a model name is invalid; the CLI version is the moving part.
 
 ## Git workflow
 
