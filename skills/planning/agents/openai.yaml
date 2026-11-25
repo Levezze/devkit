@@ -1,0 +1,6 @@
+interface:
+  display_name: "Planning"
+  short_description: "Plan a feature, architecture change, refactor or migration in deepening phases (intent, system, code plan, walkthrough), persisted as numbered documents, with a timeline, review tiers and an optional GitHub breakdown."
+  default_prompt: "Use the /planning skill: Plan a feature, architecture change, refactor or migration in deepening phases (intent, system, code plan, walkthrough), persisted as numbered documents, with a timeline, review tiers and an optional GitHub breakdown."
+policy:
+  allow_implicit_invocation: false
